@@ -24,6 +24,7 @@ jobs:
           node-version: '22'
 
       - name: Build binaries
+        shell: bash
         run: |
           cd package/c
           make

@@ -29,8 +29,30 @@ typedef struct gitvfs_file {
     int flat_fd;                    /* POSIX file descriptor for temp/journal files */
 } gitvfs_file;
 
+#ifdef _WIN32
+#include <direct.h>
+#include <io.h>
+#define MKDIR(p, m) _mkdir(p)
+
+ssize_t pread(int fd, void *buf, size_t count, off_t offset) {
+    off_t current = lseek(fd, 0, SEEK_CUR);
+    if (lseek(fd, offset, SEEK_SET) == (off_t)-1) return -1;
+    ssize_t ret = read(fd, buf, count);
+    lseek(fd, current, SEEK_SET);
+    return ret;
+}
+
+ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset) {
+    off_t current = lseek(fd, 0, SEEK_CUR);
+    if (lseek(fd, offset, SEEK_SET) == (off_t)-1) return -1;
+    ssize_t ret = write(fd, buf, count);
+    lseek(fd, current, SEEK_SET);
+    return ret;
+}
+#else
+#define MKDIR(p, m) mkdir(p, m)
+#endif
 /*
- * Utility: Recursively create directories (mkdir -p behavior)
  * Helps ensure our nested sharded directory structure exists before writing.
  */
 static int mkdir_p(const char *path, mode_t mode) {
@@ -47,13 +69,13 @@ static int mkdir_p(const char *path, mode_t mode) {
     for (p = tmp + 1; *p; p++) {
         if (*p == '/') {
             *p = 0;
-            if (mkdir(tmp, mode) != 0 && errno != EEXIST) {
+            if (MKDIR(tmp, mode) != 0 && errno != EEXIST) {
                 return -1;
             }
             *p = '/';
         }
     }
-    if (mkdir(tmp, mode) != 0 && errno != EEXIST) {
+    if (MKDIR(tmp, mode) != 0 && errno != EEXIST) {
         return -1;
     }
     return 0;

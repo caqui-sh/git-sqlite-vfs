@@ -15,3 +15,8 @@ test_python_binding.py
 test_cli.sql
 .npmrc
 .compaction-db
+package/c/sqlite3.c
+package/c/sqlite3.h
+package/c/sqlite3ext.h
+package/c/sqlite-autoconf-*
+package/c/sqlite-amalgamation-*

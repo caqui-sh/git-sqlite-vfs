@@ -75,7 +75,13 @@ int main(int argc, char *argv[]) {
         sqlite3_gitvfs_init_impl(NULL);
         
         // Ensure VFS env var is set for gitvfs_Open
+#ifdef _WIN32
+        char env_str[1024];
+        snprintf(env_str, sizeof(env_str), "GIT_SQLITE_VFS_DIR=%s", base_dir);
+        _putenv(env_str);
+#else
         setenv("GIT_SQLITE_VFS_DIR", base_dir, 1);
+#endif
         
         if (sqlite3_open_v2(base_dir, &db_local, SQLITE_OPEN_READWRITE, "gitvfs") != SQLITE_OK) {
             fprintf(stderr, "Failed to open local DB: %s\n", sqlite3_errmsg(db_local));
