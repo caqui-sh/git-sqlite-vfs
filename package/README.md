@@ -1,42 +1,42 @@
 # git-sqlite-vfs
 
-A Git-Versioned SQLite Database powered by a custom native Virtual File System (VFS).
+A Git-versioned SQLite Database powered by a custom Virtual File System (VFS).
 
-By combining the robustness of native SQLite, Drizzle ORM, and libSQL with the distributed tracking power of Git, `git-sqlite-vfs` enables you to version, diff, and merge your application's database exactly like your source code. It works out-of-the-box in both **Node.js** and **Deno**.
+By integrating native SQLite, Drizzle ORM, and libSQL with Git's version control capabilities, `git-sqlite-vfs` allows you to version, diff, and merge your application's database in a manner similar to source code. It is compatible with both **Node.js** and **Deno**.
 
 ## Architecture
 
-Traditional SQLite databases are stored as a single flat file, making them difficult to version control because a 1-byte insertion can trigger a cascading byte shift across the entire file, rendering delta-compression useless.
+Standard SQLite databases are stored as a single flat file. This structure presents challenges for version control, as a minor insertion can result in widespread byte shifts across the file, reducing the effectiveness of delta-compression and making binary merge conflicts difficult to resolve.
 
-This package dynamically loads a specialized SQLite C Extension that overrides the default VFS. It shards your database into 4KB deterministic binary pages inside a targeted directory (e.g. `.my-db`).
+This package provides a loadable SQLite C Extension that overrides the default VFS behavior. It shards the database into 4KB deterministic binary pages within a specified directory (e.g. `.my-db`).
 
-When you merge branches, our custom `git-merge-sqlitevfs` driver is natively hooked into Git's conflict resolution pipeline to properly reconcile binary B-Tree page conflicts, ensuring absolute data integrity!
+During a Git merge, a provided `git-merge-sqlitevfs` driver integrates with Git's conflict resolution pipeline to reconcile binary B-Tree page conflicts, maintaining data integrity.
 
 ## Installation
 
-Install the VFS package alongside your libSQL and Drizzle tools:
+Install the package alongside your libSQL and Drizzle ORM dependencies:
 
 ```bash
 npm install git-sqlite-vfs @libsql/client drizzle-orm
 ```
 
-## Git Setup
+## Git Configuration
 
-To enable Git versioning and binary merging, you must configure your repository to use the custom merge driver. We provide a convenient CLI to wire everything up:
+To enable Git versioning and binary merging, the repository must be configured to use the custom merge driver. A CLI tool is provided for this purpose:
 
 ```bash
 npx git-sqlite-setup --vfs-dir .my-db
 ```
 
-This will:
-1. Register `git-merge-sqlitevfs` as a custom Git merge driver in your local `.git/config`.
-2. Create or append to a `.gitattributes` file in your repo root to route all files in `.my-db/*` through the custom merge driver.
+This command will:
+1. Register `git-merge-sqlitevfs` as a custom Git merge driver in the local `.git/config`.
+2. Add or append to a `.gitattributes` file in the repository root to route all files matching `.my-db/*` through the custom merge driver.
 
-## Usage (Isomorphic)
+## Usage
 
-The VFS works transparently in both Node.js and Deno. By using the `bootstrapGitVFS()` method before you initialize `@libsql/client`, the native memory spaces are perfectly synchronized.
+The VFS works in both Node.js and Deno environments. By calling the `bootstrapGitVFS()` method prior to initializing `@libsql/client`, the extension is loaded process-wide.
 
-### Using `@libsql/client` with Drizzle ORM
+### Example with `@libsql/client` and Drizzle ORM
 
 ```typescript
 import { createClient } from '@libsql/client'; // In Deno: 'npm:@libsql/client/node'
@@ -47,7 +47,7 @@ import { bootstrapGitVFS } from 'git-sqlite-vfs';
 // 1. Load the native extension process-wide and set the VFS directory
 await bootstrapGitVFS({ dir: '.my-db' });
 
-// 2. Initialize your database connection using a standard file: URL
+// 2. Initialize the database connection using a standard file: URL
 const client = createClient({
     url: 'file:.my-db/local.db'
 });
@@ -55,36 +55,36 @@ const client = createClient({
 // 3. Wrap with Drizzle ORM
 const db = drizzle(client);
 
-// 4. Define your schema
+// 4. Define the schema
 const users = sqliteTable('users', {
     id: integer('id').primaryKey(),
     name: text('name')
 });
 
-// 5. Query natively! All I/O is safely intercepted by the Git VFS.
+// 5. Execute queries. File I/O is intercepted by the Git VFS.
 await db.insert(users).values({ id: 1, name: 'Alice' });
 const allUsers = await db.select().from(users);
 
 console.log(allUsers);
 ```
 
-## Preventing Git Bloat
+## Preventing Repository Bloat
 
-Because SQLite usually zeroes out deleted data pages rather than shrinking the file, you might accumulate "zombie" `.bin` pages in your repository over time. To ensure the Git VFS automatically garbage-collects these abandoned chunks, you must configure SQLite to run `FULL` auto-vacuuming and use `DELETE` journaling.
+Because SQLite often zeroes out deleted data pages rather than shrinking the database file size, "zombie" `.bin` pages may accumulate in the repository over time. To allow the Git VFS to automatically garbage-collect these unused chunks, configure SQLite to use `FULL` auto-vacuuming and `DELETE` journaling.
 
-Run these PRAGMAs once when initializing your database connection:
+Execute these PRAGMA statements when initializing the database connection:
 
 ```sql
 PRAGMA auto_vacuum = FULL;
 PRAGMA journal_mode = DELETE;
 ```
 
-Or run `VACUUM;` periodically. When SQLite explicitly shrinks the database file, the underlying VFS `xTruncate` routine will physically `unlink()` the out-of-bounds `.bin` shards, keeping your Git tracking history perfectly compressed!
+Alternatively, you can run `VACUUM;` periodically. When SQLite explicitly reduces the database file size, the underlying VFS `xTruncate` implementation will remove the out-of-bounds `.bin` shards, keeping the repository history compressed.
 
 ## Compatibility
 
-- **Node.js**: v22.5+ (using the new `node:sqlite` API internally) or fallback to `better-sqlite3`.
-- **Deno**: Supported automatically (loads the extension dynamically via `jsr:@db/sqlite`).
+- **Node.js**: v22.5+ (using the internal `node:sqlite` API) or fallback to `better-sqlite3`.
+- **Deno**: Supported natively (loads the extension dynamically via `jsr:@db/sqlite`).
 
 ## License
 
