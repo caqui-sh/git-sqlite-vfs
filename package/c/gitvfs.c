@@ -516,11 +516,18 @@ int sqlite3_gitvfs_init_impl(const char *base_dir) {
 #ifdef _WIN32
 __declspec(dllexport)
 #endif
-int sqlite3_gitvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi) {
+int sqlite3_extension_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi) {
     (void)db; (void)pzErrMsg;
     SQLITE_EXTENSION_INIT2(pApi);
     int rc = sqlite3_gitvfs_init_impl(".db");
     return (rc == SQLITE_OK) ? SQLITE_OK_LOAD_PERMANENTLY : rc;
+}
+
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+int sqlite3_gitvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi) {
+    return sqlite3_extension_init(db, pzErrMsg, pApi);
 }
 #endif
 
