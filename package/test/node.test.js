@@ -1,13 +1,13 @@
-import { test } from 'jsr:@std/testing/bdd';
-import { expect } from 'jsr:@std/expect';
-import { existsSync } from 'jsr:@std/fs/exists';
-import * as path from 'jsr:@std/path';
-import { createClient } from 'npm:@libsql/client/node';
-import { drizzle } from 'npm:drizzle-orm/libsql';
-import { sqliteTable, text, integer } from 'npm:drizzle-orm/sqlite-core';
-import { bootstrapGitVFS } from './index.js';
+import { test } from 'node:test';
+import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { bootstrapGitVFS } from '../index.js';
 
-Deno.test('Deno: Git VFS intercepts files via @libsql/client and drizzle-orm', async () => {
+test('Node.js: Git VFS intercepts files via @libsql/client and drizzle-orm', async () => {
     // 1. Execute bootstrap function to load VFS
     await bootstrapGitVFS({ dir: '.test-db' });
 
@@ -29,21 +29,21 @@ Deno.test('Deno: Git VFS intercepts files via @libsql/client and drizzle-orm', a
     await client.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)');
     await client.execute('DELETE FROM users');
 
-    await db.insert(users).values({ id: 2, name: 'Bob Deno' });
+    await db.insert(users).values({ id: 1, name: 'Alice Node' });
 
     const result = await db.select().from(users);
 
     // Assertions for query result
-    expect(result.length).toBe(1);
-    expect(result[0].name).toBe('Bob Deno');
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].name, 'Alice Node');
 
     // 6. Assert Git VFS intercepted files
     // The VFS implementation outputs to a folder matching the DB filename ('.test-db/pages')
-    const pagesDir = path.resolve(Deno.cwd(), '.test-db', 'pages');
-    expect(existsSync(pagesDir)).toBe(true);
+    const pagesDir = path.resolve(process.cwd(), '.test-db', 'pages');
+    assert.strictEqual(fs.existsSync(pagesDir), true, 'Git VFS did not create .test-db/pages directory');
     
     const sizeMeta = path.resolve(pagesDir, 'size.meta');
-    expect(existsSync(sizeMeta)).toBe(true);
+    assert.strictEqual(fs.existsSync(sizeMeta), true, 'Git VFS did not create size.meta');
     
     client.close();
 });

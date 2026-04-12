@@ -6,7 +6,7 @@ import { execSync } from 'node:child_process';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { sqliteTable, integer } from 'drizzle-orm/sqlite-core';
-import { bootstrapGitVFS, configureGitIntegration } from './index.js';
+import { bootstrapGitVFS, configureGitIntegration } from '../index.js';
 
 test('E2E: Git merge seamlessly resolves SQLite binary conflicts', async () => {
     const repoDir = path.join(process.cwd(), '.e2e-repo');

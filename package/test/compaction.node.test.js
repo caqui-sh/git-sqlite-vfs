@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { bootstrapGitVFS } from './index.js';
+import { bootstrapGitVFS } from '../index.js';
 
 function countFiles(dir) {
     if (!fs.existsSync(dir)) return 0;

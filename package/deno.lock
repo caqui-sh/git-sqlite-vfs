@@ -49,7 +49,6 @@
     "packageJson": {
       "dependencies": [
         "npm:@libsql/client@0.14",
-        "npm:better-sqlite3@^9.4.3",
         "npm:drizzle-orm@0.33",
         "npm:libsql@~0.4.5"
       ]
