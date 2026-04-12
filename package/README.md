@@ -22,15 +22,15 @@ npm install git-sqlite-vfs @libsql/client drizzle-orm
 
 ## Git Configuration
 
-To enable Git versioning and binary merging, the repository must be configured to use the custom merge driver. A CLI tool is provided for this purpose:
+To enable Git versioning and binary merging, the repository must be configured to use the custom merge driver. This is done **automatically** when you call `bootstrapGitVFS()`:
 
-```bash
-npx git-sqlite-setup --vfs-dir .my-db
-```
+1. It registers `git-merge-sqlitevfs` as a custom Git merge driver in the local `.git/config`.
+2. It adds or appends to a `.gitattributes` file in the repository root to route all files matching your configured directory (e.g., `.my-db/*`) through the custom merge driver.
+3. It creates or updates a `.gitignore` to ignore SQLite transient files (`*-journal`, `*-wal`, `*-shm`).
 
-This command will:
-1. Register `git-merge-sqlitevfs` as a custom Git merge driver in the local `.git/config`.
-2. Add or append to a `.gitattributes` file in the repository root to route all files matching `.my-db/*` through the custom merge driver.
+### Safe alongside Source Code
+
+The custom SQLite merge driver **will not interfere with the merging of standard source code or text files**. By utilizing the `.gitattributes` file, Git explicitly scopes the custom driver strictly to the files within your designated database directory (e.g., `.my-db/* merge=sqlitevfs`). All other files in your repository will continue to use Git's default text-based merge algorithms.
 
 ## Usage
 

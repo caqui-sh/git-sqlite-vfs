@@ -20,3 +20,5 @@ package/c/sqlite3.h
 package/c/sqlite3ext.h
 package/c/sqlite-autoconf-*
 package/c/sqlite-amalgamation-*
+package/.gitattributes
+package/.gitignore

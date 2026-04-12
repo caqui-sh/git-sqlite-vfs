@@ -29,12 +29,7 @@ Because `libsql` runs its own statically linked copy of SQLite in an isolated na
 npm install git-sqlite-vfs @libsql/client drizzle-orm
 ```
 
-**1. Setup the Git Driver**
-```bash
-npx git-sqlite-setup --vfs-dir .my-db
-```
-
-**2. Connect & Query**
+**1. Connect & Query**
 ```typescript
 import { createClient } from '@libsql/client'; // Deno: 'npm:@libsql/client/node'
 import { drizzle } from 'drizzle-orm/libsql';

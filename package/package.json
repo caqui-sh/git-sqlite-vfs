@@ -1,6 +1,6 @@
 {
   "name": "git-sqlite-vfs",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "A Git-Versioned SQLite Database via a Custom Virtual File System (VFS)",
   "main": "index.js",
   "types": "index.d.ts",
@@ -24,9 +24,9 @@
   "scripts": {
     "build": "cd c && make",
     "postinstall": "node install.js",
-    "pretest": "npm run build && rm -rf .db test.db .test-db .compaction-db .git && git init --initial-branch=master",
+    "pretest": "npm run build && rm -rf .db test.db .test-db .compaction-db .git .gitattributes .gitignore && git init --initial-branch=master",
     "test": "node --test test/*.node.test.js",
-    "test:deno": "npm run build && rm -rf .db test.db .test-db .git && git init --initial-branch=master && deno test -A test/*.deno.test.ts"
+    "test:deno": "npm run build && rm -rf .db test.db .test-db .git .gitattributes .gitignore && git init --initial-branch=master && deno test -A test/*.deno.test.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",

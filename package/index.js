@@ -53,6 +53,14 @@ export async function bootstrapGitVFS(options = {}) {
     const db = new Database(':memory:');
     db.loadExtension(currentExtPath);
     db.close();
+
+    try {
+        const repoDir = typeof Deno !== 'undefined' ? Deno.cwd() : process.cwd();
+        const vfsDir = options.dir || '.db';
+        await configureGitIntegration({ repoDir, vfsDir });
+    } catch (e) {
+        // Ignore errors if git is not available or not in a git repository
+    }
 }
 
 export async function configureGitIntegration({ repoDir, vfsDir }) {
