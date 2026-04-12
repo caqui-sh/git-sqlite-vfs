@@ -6,3 +6,4 @@ package/.db/
 package/.git/
 test_python_binding.py
 test_cli.sql
+.npmrc

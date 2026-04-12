@@ -16,6 +16,8 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: git-sqlite-vfs-${{ github.event.release.tag_name }}-linux-x64.tar.gz
+          - os: ubuntu-24.04-arm
+            artifact_name: git-sqlite-vfs-${{ github.event.release.tag_name }}-linux-arm64.tar.gz
           - os: macos-latest
             artifact_name: git-sqlite-vfs-${{ github.event.release.tag_name }}-darwin-x64.tar.gz
           - os: macos-14 # ARM64

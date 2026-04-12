@@ -18,7 +18,7 @@ class GitSQLite {
         const tempDb = new Database(':memory:');
         
         // 2. Enable extensions and load our compiled C VFS extension (.so)
-        tempDb.loadExtension(path.resolve(__dirname, '../c/output/gitvfs'));
+        tempDb.loadExtension(path.resolve(__dirname, 'c/output/gitvfs'));
         
         // 3. Close tempDb. The SQLite runtime inside the Node process 
         // will permanently retain the global 'gitvfs' registration!

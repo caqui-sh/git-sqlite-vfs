@@ -1,6 +1,6 @@
 {
   "name": "git-sqlite-vfs",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "A Git-Versioned SQLite Database via a Custom Virtual File System (VFS)",
   "main": "index.js",
   "scripts": {
