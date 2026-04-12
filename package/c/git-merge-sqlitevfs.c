@@ -16,7 +16,8 @@ int main(int argc, char *argv[]) {
     const char *path_repo = argv[4]; // %P
 
     char base_dir[512];
-    strncpy(base_dir, path_repo, sizeof(base_dir));
+    strncpy(base_dir, path_repo, sizeof(base_dir) - 1);
+    base_dir[sizeof(base_dir) - 1] = '\0';
     char *pages_ptr = strstr(base_dir, "/pages/");
     if (!pages_ptr) {
         fprintf(stderr, "Failed to parse base_dir from %s\n", path_repo);
@@ -28,7 +29,7 @@ int main(int argc, char *argv[]) {
     // We can use a lock file.
     char lock_file[512];
     snprintf(lock_file, sizeof(lock_file), "/tmp/gitvfs_merge_%s.lock", base_dir);
-    for (int i=0; i<sizeof(lock_file); i++) {
+    for (size_t i=0; i<sizeof(lock_file); i++) {
         if (lock_file[i] == '/') lock_file[i] = '_';
     }
     

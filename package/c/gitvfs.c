@@ -56,6 +56,7 @@ ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset) {
  * Helps ensure our nested sharded directory structure exists before writing.
  */
 static int mkdir_p(const char *path, mode_t mode) {
+    (void)mode;
     char tmp[GITVFS_MAX_PATH];
     char *p = NULL;
     size_t len;
@@ -307,6 +308,7 @@ static int gitvfs_Truncate(sqlite3_file *pFile, sqlite3_int64 size) {
 }
 
 static int gitvfs_Sync(sqlite3_file *pFile, int flags) {
+    (void)pFile; (void)flags;
     // Single-writer MVP relying on standard POSIX disk flushes.
     // For temp files we could call fsync(p->flat_fd). 
     // Returning SQLITE_OK satisfies SQLite's expectation.
@@ -331,6 +333,7 @@ static int gitvfs_FileSize(sqlite3_file *pFile, sqlite3_int64 *pSize) {
 }
 
 static int gitvfs_Lock(sqlite3_file *pFile, int eLock) {
+    (void)pFile; (void)eLock;
     return SQLITE_OK; // SQLite requires lock functions to succeed
 }
 
@@ -340,19 +343,23 @@ static int gitvfs_Unlock(sqlite3_file *pFile, int eLock) {
 }
 
 static int gitvfs_CheckReservedLock(sqlite3_file *pFile, int *pResOut) {
+    (void)pFile;
     *pResOut = 0;
     return SQLITE_OK;
 }
 
 static int gitvfs_FileControl(sqlite3_file *pFile, int op, void *pArg) {
+    (void)pFile; (void)op; (void)pArg;
     return SQLITE_NOTFOUND;
 }
 
 static int gitvfs_SectorSize(sqlite3_file *pFile) {
+    (void)pFile;
     return GITVFS_PAGE_SIZE;
 }
 
 static int gitvfs_DeviceCharacteristics(sqlite3_file *pFile) {
+    (void)pFile;
     return 0; // Standard characteristics
 }
 
@@ -385,6 +392,7 @@ static const sqlite3_io_methods gitvfs_io_methods = {
 static sqlite3_vfs *orig_vfs = NULL;
 
 static int gitvfs_Open(sqlite3_vfs *pVfs, const char *zName, sqlite3_file *pFile, int flags, int *pOutFlags) {
+    (void)pVfs;
     if (!orig_vfs) orig_vfs = sqlite3_vfs_find(NULL);
     const char *vfs_dir = getenv("GIT_SQLITE_VFS_DIR");
     if (!vfs_dir) {
@@ -467,36 +475,39 @@ static int gitvfs_Open(sqlite3_vfs *pVfs, const char *zName, sqlite3_file *pFile
 }
 
 static int gitvfs_Delete(sqlite3_vfs *pVfs, const char *zName, int syncDir) {
+    (void)pVfs; (void)syncDir;
     // Standard file deletion, primarily used for clearing out old journals
     unlink(zName);
     return SQLITE_OK;
 }
 
 static int gitvfs_Access(sqlite3_vfs *pVfs, const char *zName, int flags, int *pResOut) {
+    (void)pVfs; (void)flags;
     // Check if the directory or file is accessible
     *pResOut = (access(zName, F_OK) == 0) ? 1 : 0;
     return SQLITE_OK;
 }
 
 static int gitvfs_FullPathname(sqlite3_vfs *pVfs, const char *zName, int nOut, char *zOut) {
+    (void)pVfs;
     snprintf(zOut, nOut, "%s", zName);
     return SQLITE_OK;
 }
 
 /* System calls to load extensions (stubbed) */
-static void *gitvfs_DlOpen(sqlite3_vfs *pVfs, const char *zFilename) { return orig_vfs->xDlOpen(orig_vfs, zFilename); }
-static void gitvfs_DlError(sqlite3_vfs *pVfs, int nByte, char *zErrMsg) { orig_vfs->xDlError(orig_vfs, nByte, zErrMsg); }
-static void (*gitvfs_DlSym(sqlite3_vfs *pVfs, void *p, const char*zSymbol))(void) { return orig_vfs->xDlSym(orig_vfs, p, zSymbol); }
-static void gitvfs_DlClose(sqlite3_vfs *pVfs, void *pHandle) { orig_vfs->xDlClose(orig_vfs, pHandle); }
-static int gitvfs_Randomness(sqlite3_vfs *pVfs, int nByte, char *zOut) { return orig_vfs->xRandomness(orig_vfs, nByte, zOut); }
-static int gitvfs_Sleep(sqlite3_vfs *pVfs, int microseconds) { return orig_vfs->xSleep(orig_vfs, microseconds); }
-static int gitvfs_CurrentTime(sqlite3_vfs *pVfs, double *prNow) { return orig_vfs->xCurrentTime(orig_vfs, prNow); }
+static void *gitvfs_DlOpen(sqlite3_vfs *pVfs, const char *zFilename) { (void)pVfs; return orig_vfs->xDlOpen(orig_vfs, zFilename); }
+static void gitvfs_DlError(sqlite3_vfs *pVfs, int nByte, char *zErrMsg) { (void)pVfs; orig_vfs->xDlError(orig_vfs, nByte, zErrMsg); }
+static void (*gitvfs_DlSym(sqlite3_vfs *pVfs, void *p, const char*zSymbol))(void) { (void)pVfs; return orig_vfs->xDlSym(orig_vfs, p, zSymbol); }
+static void gitvfs_DlClose(sqlite3_vfs *pVfs, void *pHandle) { (void)pVfs; orig_vfs->xDlClose(orig_vfs, pHandle); }
+static int gitvfs_Randomness(sqlite3_vfs *pVfs, int nByte, char *zOut) { (void)pVfs; return orig_vfs->xRandomness(orig_vfs, nByte, zOut); }
+static int gitvfs_Sleep(sqlite3_vfs *pVfs, int microseconds) { (void)pVfs; return orig_vfs->xSleep(orig_vfs, microseconds); }
+static int gitvfs_CurrentTime(sqlite3_vfs *pVfs, double *prNow) { (void)pVfs; return orig_vfs->xCurrentTime(orig_vfs, prNow); }
 
-static int gitvfs_GetLastError(sqlite3_vfs *pVfs, int a, char *b) { return orig_vfs->xGetLastError ? orig_vfs->xGetLastError(orig_vfs, a, b) : 0; }
-static int gitvfs_CurrentTimeInt64(sqlite3_vfs *pVfs, sqlite3_int64 *p) { return orig_vfs->xCurrentTimeInt64 ? orig_vfs->xCurrentTimeInt64(orig_vfs, p) : 0; }
-static int gitvfs_SetSystemCall(sqlite3_vfs *pVfs, const char *zName, sqlite3_syscall_ptr pNew) { return orig_vfs->xSetSystemCall ? orig_vfs->xSetSystemCall(orig_vfs, zName, pNew) : SQLITE_ERROR; }
-static sqlite3_syscall_ptr gitvfs_GetSystemCall(sqlite3_vfs *pVfs, const char *zName) { return orig_vfs->xGetSystemCall ? orig_vfs->xGetSystemCall(orig_vfs, zName) : NULL; }
-static const char *gitvfs_NextSystemCall(sqlite3_vfs *pVfs, const char *zName) { return orig_vfs->xNextSystemCall ? orig_vfs->xNextSystemCall(orig_vfs, zName) : NULL; }
+static int gitvfs_GetLastError(sqlite3_vfs *pVfs, int a, char *b) { (void)pVfs; return orig_vfs->xGetLastError ? orig_vfs->xGetLastError(orig_vfs, a, b) : 0; }
+static int gitvfs_CurrentTimeInt64(sqlite3_vfs *pVfs, sqlite3_int64 *p) { (void)pVfs; return orig_vfs->xCurrentTimeInt64 ? orig_vfs->xCurrentTimeInt64(orig_vfs, p) : 0; }
+static int gitvfs_SetSystemCall(sqlite3_vfs *pVfs, const char *zName, sqlite3_syscall_ptr pNew) { (void)pVfs; return orig_vfs->xSetSystemCall ? orig_vfs->xSetSystemCall(orig_vfs, zName, pNew) : SQLITE_ERROR; }
+static sqlite3_syscall_ptr gitvfs_GetSystemCall(sqlite3_vfs *pVfs, const char *zName) { (void)pVfs; return orig_vfs->xGetSystemCall ? orig_vfs->xGetSystemCall(orig_vfs, zName) : NULL; }
+static const char *gitvfs_NextSystemCall(sqlite3_vfs *pVfs, const char *zName) { (void)pVfs; return orig_vfs->xNextSystemCall ? orig_vfs->xNextSystemCall(orig_vfs, zName) : NULL; }
 
 /*
  * Entry point to register our Git VFS.
@@ -556,4 +567,8 @@ int sqlite3_gitvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines
     return sqlite3_extension_init(db, pzErrMsg, pApi);
 }
 #endif
+
+
+
+
 
