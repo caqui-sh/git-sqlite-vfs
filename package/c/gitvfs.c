@@ -313,6 +313,7 @@ static int gitvfs_Lock(sqlite3_file *pFile, int eLock) {
 }
 
 static int gitvfs_Unlock(sqlite3_file *pFile, int eLock) {
+    (void)pFile; (void)eLock;
     return SQLITE_OK;
 }
 
@@ -346,7 +347,13 @@ static const sqlite3_io_methods gitvfs_io_methods = {
     gitvfs_CheckReservedLock,       /* xCheckReservedLock */
     gitvfs_FileControl,             /* xFileControl */
     gitvfs_SectorSize,              /* xSectorSize */
-    gitvfs_DeviceCharacteristics    /* xDeviceCharacteristics */
+    gitvfs_DeviceCharacteristics,   /* xDeviceCharacteristics */
+    NULL,                           /* xShmMap */
+    NULL,                           /* xShmLock */
+    NULL,                           /* xShmBarrier */
+    NULL,                           /* xShmUnmap */
+    NULL,                           /* xFetch */
+    NULL                            /* xUnfetch */
 };
 
 /* =====================================================================
@@ -459,6 +466,12 @@ static int gitvfs_Randomness(sqlite3_vfs *pVfs, int nByte, char *zOut) { return 
 static int gitvfs_Sleep(sqlite3_vfs *pVfs, int microseconds) { return orig_vfs->xSleep(orig_vfs, microseconds); }
 static int gitvfs_CurrentTime(sqlite3_vfs *pVfs, double *prNow) { return orig_vfs->xCurrentTime(orig_vfs, prNow); }
 
+static int gitvfs_GetLastError(sqlite3_vfs *pVfs, int a, char *b) { return orig_vfs->xGetLastError ? orig_vfs->xGetLastError(orig_vfs, a, b) : 0; }
+static int gitvfs_CurrentTimeInt64(sqlite3_vfs *pVfs, sqlite3_int64 *p) { return orig_vfs->xCurrentTimeInt64 ? orig_vfs->xCurrentTimeInt64(orig_vfs, p) : 0; }
+static int gitvfs_SetSystemCall(sqlite3_vfs *pVfs, const char *zName, sqlite3_syscall_ptr pNew) { return orig_vfs->xSetSystemCall ? orig_vfs->xSetSystemCall(orig_vfs, zName, pNew) : SQLITE_ERROR; }
+static sqlite3_syscall_ptr gitvfs_GetSystemCall(sqlite3_vfs *pVfs, const char *zName) { return orig_vfs->xGetSystemCall ? orig_vfs->xGetSystemCall(orig_vfs, zName) : NULL; }
+static const char *gitvfs_NextSystemCall(sqlite3_vfs *pVfs, const char *zName) { return orig_vfs->xNextSystemCall ? orig_vfs->xNextSystemCall(orig_vfs, zName) : NULL; }
+
 /*
  * Entry point to register our Git VFS.
  */
@@ -467,9 +480,12 @@ int sqlite3_gitvfs_init_impl(const char *base_dir) {
     if (sqlite3_vfs_find("gitvfs") != NULL) {
         return SQLITE_OK;
     }
+    
+    if (!orig_vfs) orig_vfs = sqlite3_vfs_find(NULL);
+
     static sqlite3_vfs git_vfs = {
-        1,                                /* iVersion */
-        sizeof(gitvfs_file),              /* szOsFile */
+        3,                                /* iVersion */
+        0,                                /* szOsFile */
         GITVFS_MAX_PATH,                  /* mxPathname */
         NULL,                             /* pNext */
         "gitvfs",                         /* zName */
@@ -485,12 +501,14 @@ int sqlite3_gitvfs_init_impl(const char *base_dir) {
         gitvfs_Randomness,                /* xRandomness */
         gitvfs_Sleep,                     /* xSleep */
         gitvfs_CurrentTime,               /* xCurrentTime */
-        NULL,                             /* xGetLastError */
-        NULL                              /* xCurrentTimeInt64 */
+        gitvfs_GetLastError,              /* xGetLastError */
+        gitvfs_CurrentTimeInt64,          /* xCurrentTimeInt64 */
+        gitvfs_SetSystemCall,             /* xSetSystemCall */
+        gitvfs_GetSystemCall,             /* xGetSystemCall */
+        gitvfs_NextSystemCall             /* xNextSystemCall */
     };
 
-    if (!orig_vfs) orig_vfs = sqlite3_vfs_find(NULL);
-    git_vfs.szOsFile = sizeof(gitvfs_file) > orig_vfs->szOsFile ? sizeof(gitvfs_file) : orig_vfs->szOsFile;
+    git_vfs.szOsFile = sizeof(gitvfs_file) > (size_t)orig_vfs->szOsFile ? (int)sizeof(gitvfs_file) : orig_vfs->szOsFile;
     return sqlite3_vfs_register(&git_vfs, 1);
 }
 

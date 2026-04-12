@@ -8,7 +8,7 @@ OUT_DIR = output
 all: $(OUT_DIR)/gitvfs_test $(OUT_DIR)/git-merge-sqlitevfs $(OUT_DIR)/gitvfs.so
 
 $(OUT_DIR)/gitvfs.so: $(SRC_DIR)/gitvfs.c $(SRC_DIR)/gitvfs.h | $(OUT_DIR)
-	$(CC) $(CFLAGS) -fPIC -shared -DCOMPILE_SQLITE_EXTENSION $(SRC_DIR)/gitvfs.c -o $(OUT_DIR)/gitvfs.so
+	$(CC) $(CFLAGS) -fPIC -shared -DCOMPILE_SQLITE_EXTENSION $(SRC_DIR)/gitvfs.c -o $(OUT_DIR)/gitvfs.so $(LDFLAGS)
 
 $(OUT_DIR)/gitvfs.o: $(SRC_DIR)/gitvfs.c $(SRC_DIR)/gitvfs.h | $(OUT_DIR)
 	$(CC) $(CFLAGS) -c $(SRC_DIR)/gitvfs.c -o $(OUT_DIR)/gitvfs.o
