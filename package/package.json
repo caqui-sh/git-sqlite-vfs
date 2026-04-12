@@ -1,0 +1,17 @@
+{
+  "name": "git-sqlite-vfs",
+  "version": "0.0.0",
+  "description": "A Git-Versioned SQLite Database via a Custom Virtual File System (VFS)",
+  "main": "index.js",
+  "scripts": {
+    "build": "cd c && make",
+    "postinstall": "node install.js",
+    "pretest": "npm run build && rm -rf .db .git && git init --initial-branch=master",
+    "test": "node --test test.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3"
+  },
+  "author": "",
+  "license": "ISC"
+}
