@@ -1,5 +1,10 @@
 package/c/output/
 package/c/**/*.o
+*.so
+*.dylib
+*.dll
+test.db
+test.db-journal
 .db/
 node_modules/
 package/.db/

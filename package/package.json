@@ -3,13 +3,14 @@
   "version": "0.0.2",
   "description": "A Git-Versioned SQLite Database via a Custom Virtual File System (VFS)",
   "main": "index.js",
+  "types": "index.d.ts",
   "type": "module",
   "scripts": {
     "build": "cd c && make",
     "postinstall": "node install.js",
-    "pretest": "npm run build && rm -rf .db test.db .git && git init --initial-branch=master",
+    "pretest": "npm run build && rm -rf .db test.db .test-db .git && git init --initial-branch=master",
     "test": "node --test test.node.js",
-    "test:deno": "npm run build && rm -rf .db test.db .git && git init --initial-branch=master && deno test -A test.deno.ts"
+    "test:deno": "npm run build && rm -rf .db test.db .test-db .git && git init --initial-branch=master && deno test -A test.deno.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",

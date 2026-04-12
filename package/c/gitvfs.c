@@ -364,7 +364,11 @@ static sqlite3_vfs *orig_vfs = NULL;
 
 static int gitvfs_Open(sqlite3_vfs *pVfs, const char *zName, sqlite3_file *pFile, int flags, int *pOutFlags) {
     if (!orig_vfs) orig_vfs = sqlite3_vfs_find(NULL);
-    if (!zName || strstr(zName, ".db") == NULL) {
+    const char *vfs_dir = getenv("GIT_SQLITE_VFS_DIR");
+    if (!vfs_dir) {
+        vfs_dir = ".db";
+    }
+    if (!zName || strstr(zName, vfs_dir) == NULL) {
         return orig_vfs->xOpen(orig_vfs, zName, pFile, flags, pOutFlags);
     }
     gitvfs_file *p = (gitvfs_file*)pFile;
@@ -376,7 +380,7 @@ static int gitvfs_Open(sqlite3_vfs *pVfs, const char *zName, sqlite3_file *pFile
     if (flags & SQLITE_OPEN_MAIN_DB) {
         p->is_main_db = 1;
         
-        const char *base = (zName != NULL) ? zName : ".db";
+        const char *base = (zName != NULL) ? zName : vfs_dir;
         
         // Strip URI parameters if they exist
         char clean_base[GITVFS_MAX_PATH];
