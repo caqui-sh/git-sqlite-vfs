@@ -19,6 +19,7 @@ test('Production E2E Node.js: Installs from NPM and downloads prebuilt binary', 
         const installOut = execSync('npm install --foreground-scripts git-sqlite-vfs@latest @libsql/client@^0.14.0 drizzle-orm', { cwd: tempDir, encoding: 'utf-8' });
         
         assert.ok(installOut.includes('Successfully downloaded and extracted prebuilt binary'), 'Failed to download prebuilt binary');
+        assert.ok(!installOut.includes('Falling back to building from source'), 'Package built from source instead of using prebuilt binary');
 
         fs.copyFileSync(path.join(__dirname, 'assets', 'test_script.js'), path.join(tempDir, 'test_script.js'));
         
