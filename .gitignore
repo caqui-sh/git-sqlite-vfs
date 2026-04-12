@@ -6,8 +6,10 @@ package/c/**/*.o
 test.db
 test.db-journal
 .db/
+.test-db/
 node_modules/
 package/.db/
+package/.test-db/
 package/.git/
 test_python_binding.py
 test_cli.sql

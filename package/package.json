@@ -5,6 +5,16 @@
   "main": "index.js",
   "types": "index.d.ts",
   "type": "module",
+  "bin": {
+    "git-sqlite-setup": "bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    "c/",
+    "index.js",
+    "index.d.ts",
+    "install.js"
+  ],
   "scripts": {
     "build": "cd c && make",
     "postinstall": "node install.js",
