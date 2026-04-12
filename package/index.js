@@ -42,7 +42,7 @@ export async function bootstrapGitVFS(options = {}) {
     let Database;
     if (typeof Deno !== 'undefined') {
         // Deno environment
-        const lib = await import('npm:libsql');
+        const lib = await import('libsql');
         Database = lib.default || lib.Database || lib;
     } else {
         // Node.js environment

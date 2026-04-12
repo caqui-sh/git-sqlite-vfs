@@ -1,0 +1,17 @@
+c/output/
+c/**/*.o
+c/*.so
+c/*.dylib
+c/*.dll
+c/*.exe
+c/sqlite-autoconf-*
+c/sqlite3.c
+c/sqlite3.h
+c/sqlite3ext.h
+.test-db/
+test.db/
+.compaction-db/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
