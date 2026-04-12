@@ -29,7 +29,7 @@ function buildFromSource() {
 function downloadAndExtract() {
     // If the SKIP_DOWNLOAD env var is set, or if we are building locally from the repo root
     // we should just build from source.
-    if (process.env.SKIP_DOWNLOAD || !fs.existsSync(path.join(__dirname, 'node_modules'))) {
+    if (process.env.SKIP_DOWNLOAD || !__dirname.includes('node_modules')) {
         return buildFromSource();
     }
 
