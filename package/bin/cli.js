@@ -44,7 +44,7 @@ console.log(`Repository: ${repoDir}`);
 console.log(`VFS Target Directory: ${vfsDir}`);
 
 try {
-    configureGitIntegration({ repoDir, vfsDir });
+    await configureGitIntegration({ repoDir, vfsDir });
     console.log(`\nSuccessfully configured the SQLite VFS merge driver!`);
     console.log(`Git will now use the custom C merge driver for conflicts inside: ${vfsDir}/*`);
 } catch (err) {

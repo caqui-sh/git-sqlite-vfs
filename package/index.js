@@ -3,6 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
+import process from 'node:process';
+import { downloadOrBuild } from './downloader.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +31,13 @@ export async function bootstrapGitVFS(options = {}) {
         }
     }
 
+    let currentExtPath = extensionPath;
+    if (!fs.existsSync(currentExtPath)) {
+        const writableDir = path.join(process.cwd(), '.git-sqlite-vfs-bin');
+        await downloadOrBuild(writableDir);
+        currentExtPath = path.join(writableDir, `gitvfs.${ext}`);
+    }
+
     // Dynamically import libsql so that we load the extension into its isolated native memory space.
     let Database;
     if (typeof Deno !== 'undefined') {
@@ -42,12 +51,25 @@ export async function bootstrapGitVFS(options = {}) {
     }
 
     const db = new Database(':memory:');
-    db.loadExtension(extensionPath);
+    db.loadExtension(currentExtPath);
     db.close();
 }
 
-export function configureGitIntegration({ repoDir, vfsDir }) {
-    const driverPath = path.resolve(__dirname, 'c', 'output', 'git-merge-sqlitevfs');
+export async function configureGitIntegration({ repoDir, vfsDir }) {
+    let driverDir = path.resolve(__dirname, 'c', 'output');
+    let driverPath = path.join(driverDir, 'git-merge-sqlitevfs');
+    if (platform === 'win32' && !fs.existsSync(driverPath) && fs.existsSync(driverPath + '.exe')) {
+        driverPath += '.exe';
+    }
+
+    if (!fs.existsSync(driverPath)) {
+        driverDir = path.join(process.cwd(), '.git-sqlite-vfs-bin');
+        await downloadOrBuild(driverDir);
+        driverPath = path.join(driverDir, 'git-merge-sqlitevfs');
+        if (platform === 'win32' && !fs.existsSync(driverPath) && fs.existsSync(driverPath + '.exe')) {
+            driverPath += '.exe';
+        }
+    }
     
     // Set the merge driver
     execSync(`git config merge.sqlitevfs.name "SQLite VFS Merge Driver"`, { cwd: repoDir, stdio: 'ignore' });

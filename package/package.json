@@ -13,6 +13,7 @@
     "c/",
     "index.js",
     "index.d.ts",
+    "downloader.js",
     "install.js"
   ],
   "scripts": {

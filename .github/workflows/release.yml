@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build binaries
+        run: |
+          cd package/c
+          make
+
+      - name: Get Node platform and arch
+        id: node-info
+        shell: bash
+        run: |
+          echo "platform=$(node -e 'console.log(process.platform)')" >> $GITHUB_OUTPUT
+          echo "arch=$(node -e 'console.log(process.arch)')" >> $GITHUB_OUTPUT
+
+      - name: Package binaries
+        shell: bash
+        run: |
+          cd package/c/output
+          tar -czf ../../../git-sqlite-vfs-${{ steps.node-info.outputs.platform }}-${{ steps.node-info.outputs.arch }}.tar.gz .
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: git-sqlite-vfs-${{ steps.node-info.outputs.platform }}-${{ steps.node-info.outputs.arch }}.tar.gz

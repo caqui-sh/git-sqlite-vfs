@@ -11,4 +11,4 @@ export interface ConfigureGitOptions {
     vfsDir: string;
 }
 
-export function configureGitIntegration(options: ConfigureGitOptions): void;
+export function configureGitIntegration(options: ConfigureGitOptions): Promise<void>;
