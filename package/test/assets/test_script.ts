@@ -1,7 +1,7 @@
-import { createClient } from 'npm:@libsql/client/node';
-import { drizzle } from 'npm:drizzle-orm/libsql';
-import { sqliteTable, integer } from 'npm:drizzle-orm/sqlite-core';
-import { bootstrapGitVFS } from 'npm:git-sqlite-vfs';
+import { createClient } from '@libsql/client/node';
+import { drizzle } from 'drizzle-orm/libsql';
+import { sqliteTable, integer } from 'drizzle-orm/sqlite-core';
+import { bootstrapGitVFS } from 'git-sqlite-vfs';
 
 try {
     Deno.mkdirSync('.test-db');

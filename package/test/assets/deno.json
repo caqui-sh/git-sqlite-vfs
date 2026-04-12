@@ -1,0 +1,10 @@
+{
+  "name": "test_production_deno",
+  "version": "1.0.0",
+  "imports": {
+    "@libsql/client/node": "npm:@libsql/client@^0.14.0/node",
+    "drizzle-orm/libsql": "npm:drizzle-orm@^0.33.0/libsql",
+    "drizzle-orm/sqlite-core": "npm:drizzle-orm@^0.33.0/sqlite-core",
+    "git-sqlite-vfs": "npm:git-sqlite-vfs@latest"
+  }
+}

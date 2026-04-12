@@ -6,6 +6,7 @@ Deno.test('Production E2E Deno: Installs from NPM and downloads prebuilt binary'
     const tempDir = Deno.makeTempDirSync({ prefix: 'git-sqlite-vfs-test-' });
     
     try {
+        Deno.copyFileSync(path.join(Deno.cwd(), 'test', 'assets', 'deno.json'), path.join(tempDir, 'deno.json'));
         Deno.copyFileSync(path.join(Deno.cwd(), 'test', 'assets', 'test_script.ts'), path.join(tempDir, 'test_script.ts'));
         
         const runCmd = new Deno.Command('deno', { 

@@ -1,0 +1,10 @@
+{
+  "name": "test_production_node",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "drizzle-orm": "^0.33.0",
+    "git-sqlite-vfs": "latest"
+  }
+}
