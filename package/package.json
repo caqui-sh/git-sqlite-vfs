@@ -19,8 +19,8 @@
   "scripts": {
     "build": "cd c && make",
     "postinstall": "node install.js",
-    "pretest": "npm run build && rm -rf .db test.db .test-db .git && git init --initial-branch=master",
-    "test": "node --test test.node.js",
+    "pretest": "npm run build && rm -rf .db test.db .test-db .compaction-db .git && git init --initial-branch=master",
+    "test": "node --test test.node.js test.compaction.node.js test.e2e.node.js",
     "test:deno": "npm run build && rm -rf .db test.db .test-db .git && git init --initial-branch=master && deno test -A test.deno.ts"
   },
   "dependencies": {

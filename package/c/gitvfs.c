@@ -108,7 +108,7 @@ static void generate_gitattributes(const char *base_dir) {
     // Create the .gitattributes file
     FILE *f = fopen(attr_path, "w");
     if (f) {
-        fprintf(f, "*.bin binary\nsize.meta binary\n");
+        fprintf(f, "*.bin -text -diff merge=sqlitevfs\nsize.meta -text -diff merge=sqlitevfs\n");
         fclose(f);
     }
 }
@@ -271,7 +271,7 @@ static int gitvfs_Truncate(sqlite3_file *pFile, sqlite3_int64 size) {
         snprintf(meta_path, sizeof(meta_path), "%s/pages/size.meta", p->base_dir);
         
         if (new_max_page == -1) {
-            unlink(meta_path); // DB is completely empty
+            remove(meta_path); // DB is completely empty
         } else {
             FILE *f = fopen(meta_path, "w");
             if (f) {

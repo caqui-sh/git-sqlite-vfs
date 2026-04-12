@@ -73,7 +73,7 @@ export async function configureGitIntegration({ repoDir, vfsDir }) {
     
     // Set the merge driver
     execSync(`git config merge.sqlitevfs.name "SQLite VFS Merge Driver"`, { cwd: repoDir, stdio: 'ignore' });
-    execSync(`git config merge.sqlitevfs.driver "${driverPath} %O %A %B"`, { cwd: repoDir, stdio: 'ignore' });
+    execSync(`git config merge.sqlitevfs.driver "${driverPath} %O %A %B %P"`, { cwd: repoDir, stdio: 'ignore' });
 
     // Append to .gitattributes
     const gitattributesPath = path.join(repoDir, '.gitattributes');
@@ -85,5 +85,23 @@ export async function configureGitIntegration({ repoDir, vfsDir }) {
     }
     if (!content.includes(attributeLine.trim())) {
         fs.appendFileSync(gitattributesPath, attributeLine);
+    }
+
+    // Create or update .gitignore in the repo root to ignore SQLite transient files
+    const gitignorePath = path.join(repoDir, '.gitignore');
+    const ignoreLines = [
+        `${vfsDir}/*-journal`,
+        `${vfsDir}/*-wal`,
+        `${vfsDir}/*-shm`
+    ];
+
+    let gitignoreContent = '';
+    if (fs.existsSync(gitignorePath)) {
+        gitignoreContent = fs.readFileSync(gitignorePath, 'utf-8');
+    }
+    
+    const linesToAdd = ignoreLines.filter(line => !gitignoreContent.includes(line));
+    if (linesToAdd.length > 0) {
+        fs.appendFileSync(gitignorePath, (gitignoreContent.endsWith('\n') || gitignoreContent === '' ? '' : '\n') + linesToAdd.join('\n') + '\n');
     }
 }

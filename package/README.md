@@ -68,6 +68,19 @@ const allUsers = await db.select().from(users);
 console.log(allUsers);
 ```
 
+## Preventing Git Bloat
+
+Because SQLite usually zeroes out deleted data pages rather than shrinking the file, you might accumulate "zombie" `.bin` pages in your repository over time. To ensure the Git VFS automatically garbage-collects these abandoned chunks, you must configure SQLite to run `FULL` auto-vacuuming and use `DELETE` journaling.
+
+Run these PRAGMAs once when initializing your database connection:
+
+```sql
+PRAGMA auto_vacuum = FULL;
+PRAGMA journal_mode = DELETE;
+```
+
+Or run `VACUUM;` periodically. When SQLite explicitly shrinks the database file, the underlying VFS `xTruncate` routine will physically `unlink()` the out-of-bounds `.bin` shards, keeping your Git tracking history perfectly compressed!
+
 ## Compatibility
 
 - **Node.js**: v22.5+ (using the new `node:sqlite` API internally) or fallback to `better-sqlite3`.
