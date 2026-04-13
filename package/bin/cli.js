@@ -59,6 +59,8 @@ if (positionals[0] === 'migrate') {
         await bootstrapGitVFS({ dir: targetVfsDir });
         const targetClient = await createVFSClient({ url: `file:${path.join(targetPath, 'local.db')}` });
 
+        await targetClient.execute('PRAGMA foreign_keys = OFF;');
+
         console.log('Reading schema...');
         const schemaRes = await sourceClient.execute(`SELECT sql FROM sqlite_master WHERE type IN ('table', 'index') AND sql IS NOT NULL AND name != 'sqlite_sequence';`);
 
@@ -71,26 +73,29 @@ if (positionals[0] === 'migrate') {
         for (const tableRow of tablesRes.rows) {
             const tableName = tableRow.name;
             const batchSize = 1000;
-            let offset = 0;
+            let lastRowId = -1;
             let hasMore = true;
             let batchNum = 1;
 
             while (hasMore) {
                 console.log(`Migrating table: ${tableName} (batch ${batchNum})...`);
-                const rowsRes = await sourceClient.execute(`SELECT * FROM ${tableName} LIMIT ${batchSize} OFFSET ${offset}`);
+                const rowsRes = await sourceClient.execute({
+                    sql: `SELECT rowid, * FROM "${tableName}" WHERE rowid > ? ORDER BY rowid ASC LIMIT ${batchSize}`,
+                    args: [lastRowId]
+                });
                 
                 if (rowsRes.rows.length === 0) {
                     hasMore = false;
                     break;
                 }
 
-                // Chunk into smaller tx or individual inserts
                 for (const row of rowsRes.rows) {
-                    const columns = Object.keys(row).filter(k => isNaN(Number(k)));
+                    lastRowId = row.rowid;
+                    const columns = Object.keys(row).filter(k => isNaN(Number(k)) && k !== 'rowid');
                     const values = columns.map(k => row[k]);
                     
                     const placeholders = columns.map(() => '?').join(', ');
-                    const query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
+                    const query = `INSERT INTO "${tableName}" (${columns.map(c => `"${c}"`).join(', ')}) VALUES (${placeholders})`;
                     
                     await targetClient.execute({
                         sql: query,
@@ -98,13 +103,13 @@ if (positionals[0] === 'migrate') {
                     });
                 }
 
-                offset += batchSize;
                 batchNum++;
             }
         }
 
         console.log('Vacuuming target DB for out-of-bounds shard chunking...');
         await targetClient.execute('VACUUM;');
+        await targetClient.execute('PRAGMA foreign_keys = ON;');
 
         console.log('Migration complete!');
         process.exit(0);
