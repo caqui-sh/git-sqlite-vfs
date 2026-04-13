@@ -6,8 +6,7 @@ import fs from 'node:fs';
 import process from 'node:process';
 import { downloadOrBuild } from './downloader.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const _dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 // Determine the correct extension based on OS
 const platform = os.platform();
@@ -18,7 +17,7 @@ if (platform === 'darwin') {
     ext = 'dll';
 }
 
-const extensionPath = path.resolve(__dirname, 'c', 'output', `gitvfs.${ext}`);
+const extensionPath = path.resolve(_dirname, 'c', 'output', `gitvfs.${ext}`);
 
 export const GITVFS_EXTENSION_PATH = extensionPath;
 
@@ -33,7 +32,7 @@ export async function bootstrapGitVFS(options = {}) {
 
     let currentExtPath = extensionPath;
     if (!fs.existsSync(currentExtPath)) {
-        const writableDir = path.join(__dirname, '.git-sqlite-vfs-bin');
+        const writableDir = path.join(_dirname, '.git-sqlite-vfs-bin');
         await downloadOrBuild(writableDir);
         currentExtPath = path.join(writableDir, `gitvfs.${ext}`);
     }
@@ -88,14 +87,14 @@ export async function createVFSClient(options) {
 }
 
 export async function configureGitIntegration({ repoDir, vfsDir }) {
-    let driverDir = path.resolve(__dirname, 'c', 'output');
+    let driverDir = path.resolve(_dirname, 'c', 'output');
     let driverPath = path.join(driverDir, 'git-merge-sqlitevfs');
     if (platform === 'win32' && !fs.existsSync(driverPath) && fs.existsSync(driverPath + '.exe')) {
         driverPath += '.exe';
     }
 
     if (!fs.existsSync(driverPath)) {
-        driverDir = path.join(__dirname, '.git-sqlite-vfs-bin');
+        driverDir = path.join(_dirname, '.git-sqlite-vfs-bin');
         await downloadOrBuild(driverDir);
         driverPath = path.join(driverDir, 'git-merge-sqlitevfs');
         if (platform === 'win32' && !fs.existsSync(driverPath) && fs.existsSync(driverPath + '.exe')) {

@@ -5,13 +5,12 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import process from 'node:process';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const _dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 export async function downloadOrBuild(targetDir) {
     let pkgVersion = '0.0.2';
     try {
-        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
+        const pkg = JSON.parse(fs.readFileSync(path.join(_dirname, 'package.json'), 'utf-8'));
         pkgVersion = pkg.version;
     } catch(e) {}
 
@@ -48,9 +47,9 @@ export async function downloadOrBuild(targetDir) {
         console.warn(`Download failed: ${err.message}`);
         console.log('Falling back to building from source...');
         try {
-            execSync('npm run build', { stdio: 'inherit', cwd: __dirname });
+            execSync('npm run build', { stdio: 'inherit', cwd: _dirname });
             
-            const defaultOutDir = path.join(__dirname, 'c', 'output');
+            const defaultOutDir = path.join(_dirname, 'c', 'output');
             if (path.resolve(defaultOutDir) !== path.resolve(targetDir)) {
                 fs.cpSync(defaultOutDir, targetDir, { recursive: true });
             }

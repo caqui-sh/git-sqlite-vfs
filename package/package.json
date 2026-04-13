@@ -31,6 +31,10 @@
   "dependencies": {
     "drizzle-orm": "^0.33.0"
   },
+  "devDependencies": {
+    "@libsql/client": "^0.14.0",
+    "libsql": "^0.4.5"
+  },
   "peerDependencies": {
     "@libsql/client": "^0.14.0",
     "libsql": "^0.4.5"

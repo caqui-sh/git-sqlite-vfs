@@ -51,6 +51,8 @@ await bootstrapGitVFS({ dir: '.my-db', libsql: myLibsql });
 
 ### Example with `@libsql/client` and Drizzle ORM
 
+> **Note:** Because `createVFSClient` executes required asynchronous PRAGMAs and dynamically resolves bindings, it is an `async` function. You must `await` it, unlike the synchronous `createClient` from `@libsql/client`.
+
 ```typescript
 import { bootstrapGitVFS, createVFSClient } from 'git-sqlite-vfs';
 import { drizzle } from 'drizzle-orm/libsql';
@@ -105,6 +107,28 @@ PRAGMA journal_mode = DELETE;
 ```
 
 Alternatively, executing `VACUUM;` periodically reduces the database file size, and the VFS `xTruncate` implementation will remove out-of-bounds `.bin` shards.
+
+## Compatibility
+
+- **Node.js**: v22.5+ (using the internal `node:sqlite` API) or fallback to `better-sqlite3`.
+- **Deno**: Supported natively (loads the extension dynamically via `jsr:@db/sqlite`).
+
+## License
+
+ISC
+_directory>
+```
+
+For example:
+```bash
+npx git-sqlite-setup migrate ./my-old-db.sqlite ./.my-new-vfs-db
+```
+
+This will automatically:
+1. Connect to both databases.
+2. Transfer your schema.
+3. Migrate all rows in safe, memory-efficient batches.
+4. Execute a final `VACUUM;` to ensure the new VFS physically chunks the freshly inserted data.
 
 ## Compatibility
 
