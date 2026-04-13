@@ -3,10 +3,9 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
-import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { sqliteTable, integer } from 'drizzle-orm/sqlite-core';
-import { bootstrapGitVFS, configureGitIntegration } from '../index.js';
+import { bootstrapGitVFS, configureGitIntegration, createVFSClient } from '../index.js';
 
 test('E2E: Git merge seamlessly resolves SQLite binary conflicts', async () => {
     const repoDir = path.join(process.cwd(), '.e2e-repo');
@@ -36,7 +35,7 @@ test('E2E: Git merge seamlessly resolves SQLite binary conflicts', async () => {
     // -----------------------------------------------------
     // MAIN BRANCH
     // -----------------------------------------------------
-    const clientMain = createClient({ url: `file:${path.join(repoDir, vfsDir, 'test.db')}` });
+    const clientMain = await createVFSClient({ url: `file:${path.join(repoDir, vfsDir, 'test.db')}` });
     const dbMain = drizzle(clientMain);
     const users = sqliteTable('users', { id: integer('id').primaryKey() });
 
@@ -51,7 +50,7 @@ test('E2E: Git merge seamlessly resolves SQLite binary conflicts', async () => {
     // BRANCH A
     // -----------------------------------------------------
     execSync('git checkout -b branch-a', { cwd: repoDir });
-    const clientA = createClient({ url: `file:${path.join(repoDir, vfsDir, 'test.db')}` });
+    const clientA = await createVFSClient({ url: `file:${path.join(repoDir, vfsDir, 'test.db')}` });
     const dbA = drizzle(clientA);
     await dbA.insert(users).values({ id: 2 });
     clientA.close();
@@ -64,7 +63,7 @@ test('E2E: Git merge seamlessly resolves SQLite binary conflicts', async () => {
     // -----------------------------------------------------
     execSync('git checkout main', { cwd: repoDir });
     execSync('git checkout -b branch-b', { cwd: repoDir });
-    const clientB = createClient({ url: `file:${path.join(repoDir, vfsDir, 'test.db')}` });
+    const clientB = await createVFSClient({ url: `file:${path.join(repoDir, vfsDir, 'test.db')}` });
     const dbB = drizzle(clientB);
     await dbB.insert(users).values({ id: 3 });
     clientB.close();
@@ -79,7 +78,7 @@ test('E2E: Git merge seamlessly resolves SQLite binary conflicts', async () => {
     execSync('git merge branch-a --no-edit', { cwd: repoDir, stdio: 'inherit' });
 
     // Verify
-    const clientMerged = createClient({ url: `file:${path.join(repoDir, vfsDir, 'test.db')}` });
+    const clientMerged = await createVFSClient({ url: `file:${path.join(repoDir, vfsDir, 'test.db')}` });
     const dbMerged = drizzle(clientMerged);
     const allUsers = await dbMerged.select().from(users);
     

@@ -34,19 +34,33 @@ The custom SQLite merge driver scopes to the designated database directory via `
 
 The VFS operates in Node.js and Deno environments. Calling `bootstrapGitVFS()` prior to initializing `@libsql/client` loads the extension process-wide.
 
+To ensure the VFS correctly intercepts database connections and executes required PRAGMAs, use `createVFSClient` to initialize your connection instead of `@libsql/client`'s `createClient`.
+
+### Native Binding Isolation (libsql version mismatch)
+
+`git-sqlite-vfs` internally loads the `libsql` native C extension. If your project uses a different version of `@libsql/client` (and thus a different `libsql` binding), Node/Deno may spawn two isolated native C instances in memory, causing the VFS registration to fail silently.
+
+To prevent this, you can inject your own `libsql` instance directly into the VFS via `options.libsql`:
+
+```typescript
+import * as myLibsql from 'libsql';
+import { bootstrapGitVFS } from 'git-sqlite-vfs';
+
+await bootstrapGitVFS({ dir: '.my-db', libsql: myLibsql });
+```
+
 ### Example with `@libsql/client` and Drizzle ORM
 
 ```typescript
-import { createClient } from '@libsql/client'; // In Deno: 'npm:@libsql/client/node'
+import { bootstrapGitVFS, createVFSClient } from 'git-sqlite-vfs';
 import { drizzle } from 'drizzle-orm/libsql';
 import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core';
-import { bootstrapGitVFS } from 'git-sqlite-vfs';
 
 // Load the native extension process-wide and set the VFS directory
 await bootstrapGitVFS({ dir: '.my-db' });
 
-// Initialize the database connection using a file URL
-const client = createClient({
+// Initialize the database connection (automates required PRAGMAs and natively supports Deno)
+const client = await createVFSClient({
     url: 'file:.my-db/local.db'
 });
 
@@ -66,11 +80,24 @@ const allUsers = await db.select().from(users);
 console.log(allUsers);
 ```
 
+### Usage with Deno
+
+By default, Deno resolves `npm:@libsql/client` to its browser-compatible implementation, which bypasses native C extensions entirely. This means the VFS never runs. 
+
+To work around this, lock the dependency directly to the Node environment. `createVFSClient` will gracefully default to the Node native bindings under the hood (`npm:@libsql/client/node`).
+
+If you still need to bypass `createVFSClient`, import using the `/node` path directly:
+```typescript
+import { createClient } from 'npm:@libsql/client@0.14.0/node';
+```
+
 ## Database Compaction
 
-SQLite often zeroes out deleted data pages rather than shrinking the file size, causing unneeded `.bin` pages to remain. To allow the Git VFS to remove these unused shards, configure SQLite to use `FULL` auto-vacuuming and `DELETE` journaling.
+SQLite often zeroes out deleted data pages rather than shrinking the file size, causing unneeded `.bin` pages to remain. To allow the Git VFS to remove these unused shards, it requires `FULL` auto-vacuuming and `DELETE` journaling to actively split and compact out-of-bounds shards.
 
-Execute these PRAGMA statements during connection initialization:
+When you use `createVFSClient()`, it automatically executes these PRAGMAs for you upon connection initialization.
+
+If you create your client manually without `createVFSClient`, you must run them yourself:
 
 ```sql
 PRAGMA auto_vacuum = FULL;

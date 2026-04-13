@@ -33,16 +33,18 @@ export async function bootstrapGitVFS(options = {}) {
 
     let currentExtPath = extensionPath;
     if (!fs.existsSync(currentExtPath)) {
-        const writableDir = path.join(process.cwd(), '.git-sqlite-vfs-bin');
+        const writableDir = path.join(__dirname, '.git-sqlite-vfs-bin');
         await downloadOrBuild(writableDir);
         currentExtPath = path.join(writableDir, `gitvfs.${ext}`);
     }
 
     // Dynamically import libsql so that we load the extension into its isolated native memory space.
     let Database;
-    if (typeof Deno !== 'undefined') {
+    if (options.libsql) {
+        Database = options.libsql.default || options.libsql.Database || options.libsql;
+    } else if (typeof Deno !== 'undefined') {
         // Deno environment
-        const lib = await import('libsql');
+        const lib = await import('npm:libsql');
         Database = lib.default || lib.Database || lib;
     } else {
         // Node.js environment
@@ -63,6 +65,28 @@ export async function bootstrapGitVFS(options = {}) {
     }
 }
 
+export async function createVFSClient(options) {
+    let createClientFn = options.createClient;
+    if (!createClientFn) {
+        if (typeof Deno !== 'undefined') {
+            // Gracefully default to Node native bindings in Deno to prevent bypassing the VFS
+            const mod = await import('npm:@libsql/client/node');
+            createClientFn = mod.createClient;
+        } else {
+            const mod = await import('@libsql/client');
+            createClientFn = mod.createClient;
+        }
+    }
+
+    const client = createClientFn(options.clientOptions || options);
+    
+    // Execute required PRAGMAs for the VFS to actively split and compact out-of-bounds shards
+    await client.execute('PRAGMA auto_vacuum = FULL;');
+    await client.execute('PRAGMA journal_mode = DELETE;');
+
+    return client;
+}
+
 export async function configureGitIntegration({ repoDir, vfsDir }) {
     let driverDir = path.resolve(__dirname, 'c', 'output');
     let driverPath = path.join(driverDir, 'git-merge-sqlitevfs');
@@ -71,7 +95,7 @@ export async function configureGitIntegration({ repoDir, vfsDir }) {
     }
 
     if (!fs.existsSync(driverPath)) {
-        driverDir = path.join(process.cwd(), '.git-sqlite-vfs-bin');
+        driverDir = path.join(__dirname, '.git-sqlite-vfs-bin');
         await downloadOrBuild(driverDir);
         driverPath = path.join(driverDir, 'git-merge-sqlitevfs');
         if (platform === 'win32' && !fs.existsSync(driverPath) && fs.existsSync(driverPath + '.exe')) {
