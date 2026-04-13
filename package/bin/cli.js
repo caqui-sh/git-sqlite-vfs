@@ -3,7 +3,6 @@
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { configureGitIntegration } from '../index.js';
-import { migrateDatabase } from './migrate.js';
 
 const options = {
     'repo-dir': {
@@ -25,7 +24,6 @@ const { values, positionals } = parseArgs({ options, allowPositionals: true });
 if (values.help) {
     console.log(`
 Usage: git-sqlite-setup [options]
-       git-sqlite-setup migrate <source_legacy_db_file> <target_vfs_directory>
 
 Configure the current Git repository to use the git-sqlite-vfs merge driver.
 This natively intercepts merge conflicts on your SQLite B-Tree binary shards.
@@ -38,35 +36,18 @@ Options:
     process.exit(0);
 }
 
-if (positionals[0] === 'migrate') {
-    const sourceLegacyDb = positionals[1];
-    const targetVfsDir = positionals[2];
+const repoDir = values['repo-dir'] ? path.resolve(values['repo-dir']) : process.cwd();
+const vfsDir = values['vfs-dir'] || '.db';
 
-    if (!sourceLegacyDb || !targetVfsDir) {
-        console.error('Usage: npx git-sqlite-vfs migrate <source_legacy_db_file> <target_vfs_directory>');
-        process.exit(1);
-    }
+console.log(`Configuring Git Integration...`);
+console.log(`Repository: ${repoDir}`);
+console.log(`VFS Target Directory: ${vfsDir}`);
 
-    migrateDatabase(sourceLegacyDb, targetVfsDir)
-        .then(() => process.exit(0))
-        .catch(err => {
-            console.error('Migration failed:', err);
-            process.exit(1);
-        });
-} else {
-    const repoDir = values['repo-dir'] ? path.resolve(values['repo-dir']) : process.cwd();
-    const vfsDir = values['vfs-dir'] || '.db';
-
-    console.log(`Configuring Git Integration...`);
-    console.log(`Repository: ${repoDir}`);
-    console.log(`VFS Target Directory: ${vfsDir}`);
-
-    try {
-        await configureGitIntegration({ repoDir, vfsDir });
-        console.log(`\nSuccessfully configured the SQLite VFS merge driver!`);
-        console.log(`Git will now use the custom C merge driver for conflicts inside: ${vfsDir}/*`);
-    } catch (err) {
-        console.error(`\nFailed to configure Git integration:`, err.message);
-        process.exit(1);
-    }
+try {
+    await configureGitIntegration({ repoDir, vfsDir });
+    console.log(`\nSuccessfully configured the SQLite VFS merge driver!`);
+    console.log(`Git will now use the custom C merge driver for conflicts inside: ${vfsDir}/*`);
+} catch (err) {
+    console.error(`\nFailed to configure Git integration:`, err.message);
+    process.exit(1);
 }
