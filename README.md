@@ -1,6 +1,6 @@
 # git-sqlite-vfs
 
-> **Note:** This project is an experimental distributed database architecture. It bridges SQLite VFS, POSIX syscalls, and Git merge drivers with TypeScript/JavaScript ecosystems (Deno, Node.js, Drizzle ORM, libSQL).
+> **Note:** This project is an AI-researched and implemented experimental distributed database architecture. It bridges SQLite VFS, POSIX syscalls, and Git merge drivers with TypeScript/JavaScript ecosystems (Deno, Node.js, Drizzle ORM, libSQL).
 
 `git-sqlite-vfs` is a Git-versioned SQLite database utilizing a custom Virtual File System (VFS).
 
