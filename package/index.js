@@ -6,7 +6,23 @@ import fs from 'node:fs';
 import process from 'node:process';
 import { downloadOrBuild } from './downloader.js';
 
-const _dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
+let _dirname;
+if (typeof __dirname !== 'undefined') {
+    _dirname = __dirname;
+} else {
+    // Hide import.meta from the CJS parser
+    let getMetaUrl;
+    try {
+        getMetaUrl = new Function('return import.meta.url');
+    } catch (e) {}
+
+    if (getMetaUrl) {
+        _dirname = path.dirname(fileURLToPath(getMetaUrl()));
+    } else {
+        const match = new Error().stack.match(/(file:\/\/[^\s]+?):\d+:\d+/);
+        _dirname = match ? path.dirname(fileURLToPath(match[1])) : process.cwd();
+    }
+}
 
 // Determine the correct extension based on OS
 const platform = os.platform();

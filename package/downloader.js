@@ -5,7 +5,23 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import process from 'node:process';
 
-const _dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
+let _dirname;
+if (typeof __dirname !== 'undefined') {
+    _dirname = __dirname;
+} else {
+    // Hide import.meta from the CJS parser
+    let getMetaUrl;
+    try {
+        getMetaUrl = new Function('return import.meta.url');
+    } catch (e) {}
+
+    if (getMetaUrl) {
+        _dirname = path.dirname(fileURLToPath(getMetaUrl()));
+    } else {
+        const match = new Error().stack.match(/(file:\/\/[^\s]+?):\d+:\d+/);
+        _dirname = match ? path.dirname(fileURLToPath(match[1])) : process.cwd();
+    }
+}
 
 export async function downloadOrBuild(targetDir) {
     let pkgVersion = '0.0.2';

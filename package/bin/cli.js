@@ -68,30 +68,62 @@ if (positionals[0] === 'migrate') {
             await targetClient.execute(row.sql);
         }
 
-        const tablesRes = await sourceClient.execute(`SELECT name FROM sqlite_master WHERE type='table' AND name != 'sqlite_sequence';`);
+        // Migrate internal auto-increment sequences if they exist
+        const seqCheck = await sourceClient.execute(`SELECT name FROM sqlite_master WHERE type='table' AND name='sqlite_sequence';`);
+        if (seqCheck.rows.length > 0) {
+            console.log('Migrating sqlite_sequence...');
+            const seqRows = await sourceClient.execute(`SELECT * FROM sqlite_sequence`);
+            if (seqRows.rows.length > 0) {
+                await targetClient.execute('BEGIN TRANSACTION');
+                for (const row of seqRows.rows) {
+                    await targetClient.execute({
+                        sql: `INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)`,
+                        args: [row.name, row.seq]
+                    });
+                }
+                await targetClient.execute('COMMIT');
+            }
+        }
+
+        const tablesRes = await sourceClient.execute(`SELECT name, sql FROM sqlite_master WHERE type='table' AND name != 'sqlite_sequence';`);
         
         for (const tableRow of tablesRes.rows) {
             const tableName = tableRow.name;
+            const tableSql = tableRow.sql.toUpperCase();
+            const withoutRowId = tableSql.includes('WITHOUT ROWID');
             const batchSize = 1000;
+            
             let lastRowId = -1;
+            let offset = 0;
             let hasMore = true;
             let batchNum = 1;
 
             while (hasMore) {
                 console.log(`Migrating table: ${tableName} (batch ${batchNum})...`);
-                const rowsRes = await sourceClient.execute({
-                    sql: `SELECT rowid, * FROM "${tableName}" WHERE rowid > ? ORDER BY rowid ASC LIMIT ${batchSize}`,
-                    args: [lastRowId]
-                });
+                let rowsRes;
+                
+                if (withoutRowId) {
+                    rowsRes = await sourceClient.execute(`SELECT * FROM "${tableName}" LIMIT ${batchSize} OFFSET ${offset}`);
+                } else {
+                    rowsRes = await sourceClient.execute({
+                        sql: `SELECT rowid, * FROM "${tableName}" WHERE rowid > ? ORDER BY rowid ASC LIMIT ${batchSize}`,
+                        args: [lastRowId]
+                    });
+                }
                 
                 if (rowsRes.rows.length === 0) {
                     hasMore = false;
                     break;
                 }
 
+                await targetClient.execute('BEGIN TRANSACTION');
                 for (const row of rowsRes.rows) {
-                    lastRowId = row.rowid;
-                    const columns = Object.keys(row).filter(k => isNaN(Number(k)) && k !== 'rowid');
+                    if (!withoutRowId) {
+                        lastRowId = row.rowid;
+                        delete row.rowid;
+                    }
+                    
+                    const columns = Object.keys(row).filter(k => isNaN(Number(k)));
                     const values = columns.map(k => row[k]);
                     
                     const placeholders = columns.map(() => '?').join(', ');
@@ -102,9 +134,20 @@ if (positionals[0] === 'migrate') {
                         args: values
                     });
                 }
+                await targetClient.execute('COMMIT');
 
+                if (withoutRowId) {
+                    offset += batchSize;
+                }
                 batchNum++;
             }
+        }
+
+        // Add triggers AFTER data migration
+        console.log('Migrating triggers...');
+        const triggerRes = await sourceClient.execute(`SELECT sql FROM sqlite_master WHERE type = 'trigger' AND sql IS NOT NULL;`);
+        for (const triggerRow of triggerRes.rows) {
+            await targetClient.execute(triggerRow.sql);
         }
 
         console.log('Vacuuming target DB for out-of-bounds shard chunking...');

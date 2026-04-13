@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { bootstrapGitVFS, configureGitIntegration, createVFSClient } from '../index.js';
 
@@ -61,13 +62,13 @@ test('Robustness: VFS chunking prevents Git repository bloat on scattered update
 
     // 1. Initial Load: Insert 20,000 rows
     const NUM_ROWS = 20000;
-    const PADDING = 'A'.repeat(500); // 500 bytes per row -> ~10MB total payload
     
     await client.execute('BEGIN TRANSACTION');
     for (let i = 1; i <= NUM_ROWS; i++) {
+        const padding = crypto.randomBytes(250).toString('hex'); // 500 bytes of high-entropy hex
         await client.execute({
             sql: 'INSERT INTO large_table (id, payload) VALUES (?, ?)',
-            args: [i, `Initial data ${i} - ${PADDING}`]
+            args: [i, `Initial data ${i} - ${padding}`]
         });
     }
     await client.execute('COMMIT');
@@ -89,9 +90,10 @@ test('Robustness: VFS chunking prevents Git repository bloat on scattered update
                 args: [i]
             });
         } else if (i % 5 === 0) { // Update 20%
+            const padding = crypto.randomBytes(250).toString('hex');
             await client.execute({
                 sql: 'UPDATE large_table SET payload = ? WHERE id = ?',
-                args: [`Updated data ${i} - ${PADDING}`, i]
+                args: [`Updated data ${i} - ${padding}`, i]
             });
         }
     }
