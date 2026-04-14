@@ -1,10 +1,42 @@
 #!/usr/bin/env node
 
 import path from 'node:path';
+import fs from 'node:fs';
 import { parseArgs } from 'node:util';
 import { configureGitIntegration, createVFSClient } from '../index.js';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { drizzle } from 'drizzle-orm/libsql';
+
+async function readConfig() {
+    const paths = [
+        'drizzle.config.ts',
+        'drizzle.config.js',
+        'drizzle.config.json'
+    ];
+
+    for (const p of paths) {
+        const fullPath = path.resolve(process.cwd(), p);
+        if (fs.existsSync(fullPath)) {
+            try {
+                const content = fs.readFileSync(fullPath, 'utf-8');
+                
+                // Simple regex-based parsing to avoid needing a TS runner
+                const outMatch = content.match(/out:\s*['"`](.+?)['"`]/);
+                const urlMatch = content.match(/url:\s*['"`](.+?)['"`]/);
+                const schemaMatch = content.match(/schema:\s*['"`](.+?)['"`]/);
+
+                return {
+                    out: outMatch ? outMatch[1] : undefined,
+                    url: urlMatch ? urlMatch[1] : undefined,
+                    schema: schemaMatch ? schemaMatch[1] : undefined,
+                };
+            } catch (e) {
+                // Ignore parsing errors
+            }
+        }
+    }
+    return {};
+}
 
 const helpText = `
 Usage: git-sqlite-vfs <command> [options]
@@ -34,14 +66,15 @@ Options:
 const pushHelpText = `
 Usage: git-sqlite-vfs push [options]
 
-Synchronize your schema directly to the database. 
-Note: This command currently requires a JS/TS file that exports your drizzle schema.
+Synchronize your schema directly to the database.
+This command runs 'drizzle-kit generate' followed by 'migrate' to apply changes.
 
 Options:
-  --schema <path>   Path to your drizzle schema file (required)
-  --url <url>      Database URL (default: file:.db/main.db)
-  -v, --vfs-dir <path>  The VFS shard directory (default: .db)
-  -h, --help       Show this help message
+  --schema <path>       Path to your drizzle schema file
+  --migrations <path>   Path to your migrations folder (default: 'out' from drizzle.config)
+  --url <url>          Database URL (default: 'url' from drizzle.config or file:.db/main.db)
+  -v, --vfs-dir <path>      The VFS shard directory (default: .db)
+  -h, --help           Show this help message
 `;
 
 const migrateHelpText = `
@@ -50,13 +83,15 @@ Usage: git-sqlite-vfs migrate [options]
 Run migrations against the database.
 
 Options:
-  --migrations <path>   Path to your migrations folder (required)
-  --url <url>          Database URL (default: file:.db/main.db)
+  --migrations <path>   Path to your migrations folder (default: 'out' from drizzle.config)
+  --url <url>          Database URL (default: 'url' from drizzle.config or file:.db/main.db)
   -v, --vfs-dir <path>      The VFS shard directory (default: .db)
   -h, --help           Show this help message
 `;
 
 async function main() {
+    const config = await readConfig();
+
     const { values, positionals } = parseArgs({
         options: {
             help: { type: 'boolean', short: 'h' },
@@ -97,13 +132,13 @@ async function main() {
             process.exit(1);
         }
     } else if (command === 'migrate') {
-        const migrationsFolder = values.migrations;
+        const migrationsFolder = values.migrations || config.out;
         if (!migrationsFolder) {
-            console.error('Error: --migrations <path> is required');
+            console.error('Error: migrations folder not found. Please provide --migrations <path> or define it in drizzle.config');
             process.exit(1);
         }
 
-        const url = values.url || 'file:.db/main.db';
+        const url = values.url || config.url || 'file:.db/main.db';
         const vfsDir = values['vfs-dir'] || '.db';
 
         console.log(`Running migrations...`);
@@ -123,8 +158,36 @@ async function main() {
             client.close();
         }
     } else if (command === 'push') {
-        console.error("Error: 'push' command is not fully implemented yet due to complexity of schema diffing. Please use 'migrate' with generated migrations.");
-        process.exit(1);
+        const url = values.url || config.url || 'file:.db/main.db';
+        const vfsDir = values['vfs-dir'] || '.db';
+        const migrationsFolder = values.migrations || config.out || './drizzle';
+
+        console.log(`Pushing schema changes...`);
+        console.log(`Database: ${url}`);
+
+        try {
+            const { execSync } = await import('node:child_process');
+            
+            console.log('Step 1: Generating migration from schema...');
+            let genCmd = `npx drizzle-kit generate`;
+            if (values.schema) genCmd += ` --schema ${values.schema}`;
+            if (values.migrations) genCmd += ` --out ${values.migrations}`;
+            else if (config.out) genCmd += ` --out ${config.out}`;
+            // If no config.out and no values.migrations, it defaults to ./drizzle in drizzle-kit
+            
+            execSync(genCmd, { stdio: 'inherit' });
+
+            console.log('Step 2: Applying migration to VFS database...');
+            const client = await createVFSClient({ url, dir: vfsDir });
+            const db = drizzle(client);
+            await migrate(db, { migrationsFolder });
+            client.close();
+
+            console.log('\nPush completed successfully!');
+        } catch (err) {
+            console.error('\nPush failed:', err.message);
+            process.exit(1);
+        }
     } else {
         console.error(`Unknown command: ${command}`);
         console.log(helpText);
