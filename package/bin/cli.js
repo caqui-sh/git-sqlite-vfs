@@ -1,4 +1,4 @@
-#!/usr/usr/bin/env node
+#!/usr/bin/env node
 
 import path from 'node:path';
 import { parseArgs } from 'node:util';

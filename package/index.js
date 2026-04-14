@@ -33,7 +33,8 @@ if (platform === 'darwin') {
     ext = 'dll';
 }
 
-const extensionPath = path.resolve(_dirname, 'c', 'output', `gitvfs.${ext}`);
+const extensionPathBase = path.resolve(_dirname, 'c', 'output', 'gitvfs');
+const extensionPath = `${extensionPathBase}.${ext}`;
 
 export const GITVFS_EXTENSION_PATH = extensionPath;
 
@@ -43,9 +44,12 @@ async function ensureInitialized(options = {}) {
     if (_initialized) return;
 
     let currentExtPath = extensionPath;
+    let loadPath = extensionPathBase;
+
     if (!fs.existsSync(currentExtPath)) {
         const writableDir = path.join(_dirname, '.git-sqlite-vfs-bin');
         currentExtPath = path.join(writableDir, `gitvfs.${ext}`);
+        loadPath = path.join(writableDir, 'gitvfs');
     }
 
     // Dynamically import libsql so that we load the extension into its isolated native memory space.
@@ -59,7 +63,8 @@ async function ensureInitialized(options = {}) {
     }
 
     const db = new Database(':memory:');
-    db.loadExtension(currentExtPath);
+    // We pass loadPath (no extension) because libsql's loadExtension appends the platform-specific extension automatically.
+    db.loadExtension(loadPath);
     db.close();
 
     _initialized = true;
