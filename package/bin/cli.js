@@ -24,11 +24,13 @@ async function readConfig() {
                 const outMatch = content.match(/out:\s*['"`](.+?)['"`]/);
                 const urlMatch = content.match(/url:\s*['"`](.+?)['"`]/);
                 const schemaMatch = content.match(/schema:\s*['"`](.+?)['"`]/);
+                const dialectMatch = content.match(/dialect:\s*['"`](.+?)['"`]/);
 
                 return {
                     out: outMatch ? outMatch[1] : undefined,
                     url: urlMatch ? urlMatch[1] : undefined,
                     schema: schemaMatch ? schemaMatch[1] : undefined,
+                    dialect: dialectMatch ? dialectMatch[1] : undefined,
                 };
             } catch (e) {
                 // Ignore parsing errors
@@ -161,6 +163,8 @@ async function main() {
         const url = values.url || config.url || 'file:.db/main.db';
         const vfsDir = values['vfs-dir'] || '.db';
         const migrationsFolder = values.migrations || config.out || './drizzle';
+        const schema = values.schema || config.schema;
+        const dialect = config.dialect || 'sqlite';
 
         console.log(`Pushing schema changes...`);
         console.log(`Database: ${url}`);
@@ -170,7 +174,9 @@ async function main() {
             
             console.log('Step 1: Generating migration from schema...');
             let genCmd = `npx drizzle-kit generate`;
-            if (values.schema) genCmd += ` --schema ${values.schema}`;
+            if (schema) genCmd += ` --schema ${schema}`;
+            if (dialect) genCmd += ` --dialect ${dialect}`;
+            
             if (values.migrations) genCmd += ` --out ${values.migrations}`;
             else if (config.out) genCmd += ` --out ${config.out}`;
             // If no config.out and no values.migrations, it defaults to ./drizzle in drizzle-kit

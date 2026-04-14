@@ -117,6 +117,12 @@ export async function configureGitIntegration({ repoDir, vfsDir }) {
         }
     }
     
+    // Ensure the VFS directory exists
+    const fullVfsDir = path.resolve(repoDir, vfsDir);
+    if (!fs.existsSync(fullVfsDir)) {
+        fs.mkdirSync(fullVfsDir, { recursive: true });
+    }
+
     // Set the merge driver
     execSync(`git config merge.sqlitevfs.name "SQLite VFS Merge Driver"`, { cwd: repoDir, stdio: 'ignore' });
     execSync(`git config merge.sqlitevfs.driver "${driverPath} %O %A %B %P"`, { cwd: repoDir, stdio: 'ignore' });
