@@ -1,13 +1,14 @@
-import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { sqliteTable, integer } from 'drizzle-orm/sqlite-core';
-import { bootstrapGitVFS } from 'git-sqlite-vfs';
+import { createVFSClient } from 'git-sqlite-vfs';
 import fs from 'node:fs';
 
 async function run() {
     if (!fs.existsSync('.test-db')) fs.mkdirSync('.test-db');
-    await bootstrapGitVFS({ dir: '.test-db' });
-    const client = createClient({ url: 'file:.test-db/test.db' });
+    const client = await createVFSClient({ 
+        dir: '.test-db',
+        url: 'file:.test-db/test.db' 
+    });
     const db = drizzle(client);
     const users = sqliteTable('users', { id: integer('id').primaryKey() });
     

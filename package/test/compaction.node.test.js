@@ -2,10 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { bootstrapGitVFS } from '../index.js';
+import { createVFSClient, configureGitIntegration } from '../index.js';
 
 function countFiles(dir) {
     if (!fs.existsSync(dir)) return 0;
@@ -24,9 +23,12 @@ function countFiles(dir) {
 
 test('Compaction: Git VFS removes zombie pages on xTruncate', async () => {
     const vfsDir = '.compaction-db';
-    await bootstrapGitVFS({ dir: vfsDir });
+    await configureGitIntegration({ repoDir: process.cwd(), vfsDir });
 
-    const client = createClient({ url: `file:${vfsDir}` });
+    const client = await createVFSClient({ 
+        dir: vfsDir,
+        url: `file:${vfsDir}` 
+    });
     const db = drizzle(client);
 
     const testData = sqliteTable('test_data', {

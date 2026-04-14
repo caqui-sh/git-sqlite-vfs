@@ -18,68 +18,41 @@ During a Git merge, a custom `git-merge-sqlitevfs` driver integrates with Git's 
 npm install git-sqlite-vfs @libsql/client drizzle-orm
 ```
 
-## Git Configuration
+## Setup
 
-The repository must be configured to use the custom merge driver. This configuration occurs automatically when `bootstrapGitVFS()` is called:
+Initialize your repository by running the following command once at project startup:
 
-1. Registers `git-merge-sqlitevfs` as a custom Git merge driver in the local `.git/config`.
-2. Updates `.gitattributes` in the repository root to route files matching the configured directory (e.g., `.my-db/*`) through the custom merge driver.
-3. Updates `.gitignore` to ignore SQLite transient files (`*-journal`, `*-wal`, `*-shm`).
+```bash
+npx git-sqlite-setup
+```
 
-### Source Code Compatibility
-
-The custom SQLite merge driver scopes to the designated database directory via `.gitattributes`. Other repository files continue using Git's default text-based merge algorithms.
+This command downloads or builds the necessary native binaries and configures the Git merge driver for your `.db` directory.
 
 ## Usage
 
-The VFS operates in Node.js and Deno environments. Calling `bootstrapGitVFS()` prior to initializing `@libsql/client` loads the extension process-wide.
+### libSQL Client
 
-To ensure the VFS correctly intercepts database connections and executes required PRAGMAs, use `createVFSClient` to initialize your connection instead of `@libsql/client`'s `createClient`.
+The `createVFSClient` function automatically ensures that the VFS extension is loaded and initialized.
 
-### Native Binding Isolation (libsql version mismatch)
+```javascript
+import { createVFSClient } from 'git-sqlite-vfs';
 
-`git-sqlite-vfs` internally loads the `libsql` native C extension. If your project uses a different version of `@libsql/client` (and thus a different `libsql` binding), Node/Deno may spawn two isolated native C instances in memory, causing the VFS registration to fail silently.
+// Initialize the VFS-enabled client
+const client = await createVFSClient({
+    url: 'file:.db/main.db'
+});
 
-To prevent this, you can inject your own `libsql` instance directly into the VFS via `options.libsql`:
-
-```typescript
-import * as myLibsql from 'libsql';
-import { bootstrapGitVFS } from 'git-sqlite-vfs';
-
-await bootstrapGitVFS({ dir: '.my-db', libsql: myLibsql });
+await client.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)");
 ```
 
-### Example with `@libsql/client` and Drizzle ORM
+### Drizzle ORM
 
-> **Note:** Because `createVFSClient` executes required asynchronous PRAGMAs and dynamically resolves bindings, it is an `async` function. You must `await` it, unlike the synchronous `createClient` from `@libsql/client`.
-
-```typescript
-import { bootstrapGitVFS, createVFSClient } from 'git-sqlite-vfs';
+```javascript
+import { createVFSClient } from 'git-sqlite-vfs';
 import { drizzle } from 'drizzle-orm/libsql';
-import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core';
 
-// Load the native extension process-wide and set the VFS directory
-await bootstrapGitVFS({ dir: '.my-db' });
-
-// Initialize the database connection (automates required PRAGMAs and natively supports Deno)
-const client = await createVFSClient({
-    url: 'file:.my-db/local.db'
-});
-
-// Wrap with Drizzle ORM
+const client = await createVFSClient({ url: 'file:.db/main.db' });
 const db = drizzle(client);
-
-// Define the schema
-const users = sqliteTable('users', {
-    id: integer('id').primaryKey(),
-    name: text('name')
-});
-
-// Execute queries
-await db.insert(users).values({ id: 1, name: 'Alice' });
-const allUsers = await db.select().from(users);
-
-console.log(allUsers);
 ```
 
 ### Usage with Deno

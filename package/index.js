@@ -37,14 +37,10 @@ const extensionPath = path.resolve(_dirname, 'c', 'output', `gitvfs.${ext}`);
 
 export const GITVFS_EXTENSION_PATH = extensionPath;
 
-export async function bootstrapGitVFS(options = {}) {
-    if (options.dir) {
-        if (typeof Deno !== 'undefined') {
-            Deno.env.set('GIT_SQLITE_VFS_DIR', options.dir);
-        } else {
-            process.env.GIT_SQLITE_VFS_DIR = options.dir;
-        }
-    }
+let _initialized = false;
+
+async function ensureInitialized(options = {}) {
+    if (_initialized) return;
 
     let currentExtPath = extensionPath;
     if (!fs.existsSync(currentExtPath)) {
@@ -71,16 +67,19 @@ export async function bootstrapGitVFS(options = {}) {
     db.loadExtension(currentExtPath);
     db.close();
 
-    try {
-        const repoDir = typeof Deno !== 'undefined' ? Deno.cwd() : process.cwd();
-        const vfsDir = options.dir || '.db';
-        await configureGitIntegration({ repoDir, vfsDir });
-    } catch (e) {
-        // Ignore errors if git is not available or not in a git repository
-    }
+    _initialized = true;
 }
 
 export async function createVFSClient(options) {
+    await ensureInitialized(options);
+
+    const vfsDir = options.dir || '.db';
+    if (typeof Deno !== 'undefined') {
+        Deno.env.set('GIT_SQLITE_VFS_DIR', vfsDir);
+    } else {
+        process.env.GIT_SQLITE_VFS_DIR = vfsDir;
+    }
+
     let createClientFn = options.createClient;
     if (!createClientFn) {
         if (typeof Deno !== 'undefined') {

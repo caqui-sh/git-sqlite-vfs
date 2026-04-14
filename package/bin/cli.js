@@ -25,8 +25,8 @@ if (values.help) {
     console.log(`
 Usage: git-sqlite-setup [options]
 
-Configure the current Git repository to use the git-sqlite-vfs merge driver.
-This natively intercepts merge conflicts on your SQLite B-Tree binary shards.
+Initialize and configure the current Git repository to use the git-sqlite-vfs.
+This command ensures the necessary binaries are present and sets up the Git merge driver.
 
 Options:
   -r, --repo-dir <path>   Path to the Git repository (default: current working directory)
@@ -39,15 +39,17 @@ Options:
 const repoDir = values['repo-dir'] ? path.resolve(values['repo-dir']) : process.cwd();
 const vfsDir = values['vfs-dir'] || '.db';
 
-console.log(`Configuring Git Integration...`);
+console.log(`Initializing Git SQLite VFS...`);
 console.log(`Repository: ${repoDir}`);
 console.log(`VFS Target Directory: ${vfsDir}`);
 
 try {
+    // This will trigger downloadOrBuild if binaries are missing
     await configureGitIntegration({ repoDir, vfsDir });
-    console.log(`\nSuccessfully configured the SQLite VFS merge driver!`);
+    console.log(`\nSuccessfully initialized Git SQLite VFS!`);
     console.log(`Git will now use the custom C merge driver for conflicts inside: ${vfsDir}/*`);
+    console.log(`\nTo use it in your code, use 'createVFSClient' from 'git-sqlite-vfs'.`);
 } catch (err) {
-    console.error(`\nFailed to configure Git integration:`, err.message);
+    console.error(`\nFailed to initialize Git integration:`, err.message);
     process.exit(1);
 }

@@ -1,7 +1,6 @@
-import { createClient } from '@libsql/client/node';
 import { drizzle } from 'drizzle-orm/libsql';
 import { sqliteTable, integer } from 'drizzle-orm/sqlite-core';
-import { bootstrapGitVFS } from 'git-sqlite-vfs';
+import { createVFSClient } from 'git-sqlite-vfs';
 
 try {
     Deno.mkdirSync('.test-db');
@@ -9,8 +8,10 @@ try {
     if (!(e instanceof Deno.errors.AlreadyExists)) throw e;
 }
 
-await bootstrapGitVFS({ dir: '.test-db' });
-const client = createClient({ url: 'file:.test-db/test.db' });
+const client = await createVFSClient({ 
+    dir: '.test-db',
+    url: 'file:.test-db/test.db' 
+});
 const db = drizzle(client);
 const users = sqliteTable('users', { id: integer('id').primaryKey() });
 

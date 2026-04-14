@@ -22,24 +22,36 @@ The JavaScript wrapper is designed for use with `@libsql/client` and `Drizzle OR
 
 As `libsql` runs a statically linked copy of SQLite, the wrapper injects the VFS extension globally before the ORM connects to the database.
 
-### Quick Start (Node & Deno)
+## Setup
+
+First, initialize your project to use the Git SQLite VFS by running the following command in your terminal:
+
+```bash
+npx git-sqlite-setup
+```
+
+This command will:
+1. Ensure the necessary C binaries are downloaded or built for your platform.
+2. Configure your Git repository to use the custom merge driver for the `.db` directory.
+3. Update your `.gitattributes` and `.gitignore` files.
+
+## Usage (Node & Deno)
 
 ```bash
 npm install git-sqlite-vfs @libsql/client drizzle-orm
 ```
 
-**1. Connect & Query**
+Once initialized, you can use the VFS in your application:
+
 ```typescript
-import { createClient } from '@libsql/client'; // Deno: 'npm:@libsql/client/node'
+import { createVFSClient } from 'git-sqlite-vfs';
 import { drizzle } from 'drizzle-orm/libsql';
 import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core';
-import { bootstrapGitVFS } from 'git-sqlite-vfs';
 
-// Load the native extension process-wide and target the directory
-await bootstrapGitVFS({ dir: '.my-db' });
-
-// Initialize database connection
-const client = createClient({ url: 'file:.my-db/local.db' });
+// Initialize database connection using the VFS
+const client = await createVFSClient({ 
+    url: 'file:.db/local.db' 
+});
 const db = drizzle(client);
 
 // Define schema and query

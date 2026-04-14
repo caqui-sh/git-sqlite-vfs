@@ -2,17 +2,17 @@ import { test } from 'jsr:@std/testing/bdd';
 import { expect } from 'jsr:@std/expect';
 import { existsSync } from 'jsr:@std/fs/exists';
 import * as path from 'jsr:@std/path';
-import { createClient } from 'npm:@libsql/client/node';
 import { drizzle } from 'npm:drizzle-orm/libsql';
 import { sqliteTable, text, integer } from 'npm:drizzle-orm/sqlite-core';
-import { bootstrapGitVFS } from '../index.js';
+import { createVFSClient, configureGitIntegration } from '../index.js';
 
 Deno.test('Deno: Git VFS intercepts files via @libsql/client and drizzle-orm', async () => {
-    // 1. Execute bootstrap function to load VFS
-    await bootstrapGitVFS({ dir: '.test-db' });
+    // 1. Configure Git integration
+    await configureGitIntegration({ repoDir: Deno.cwd(), vfsDir: '.test-db' });
 
-    // 2. Initialize @libsql/client using local database URL
-    const client = createClient({
+    // 2. Initialize VFS-enabled client
+    const client = await createVFSClient({
+        dir: '.test-db',
         url: 'file:.test-db'
     });
 

@@ -5,7 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
-import { bootstrapGitVFS, configureGitIntegration, createVFSClient } from '../index.js';
+import { configureGitIntegration, createVFSClient } from '../index.js';
 
 function getDirSize(dirPath) {
     let size = 0;
@@ -54,9 +54,10 @@ test('Robustness: VFS chunking prevents Git repository bloat on scattered update
     execSync('git add .gitattributes .gitignore', { cwd: repoDir });
     execSync('git commit -m "chore: setup"', { cwd: repoDir });
 
-    await bootstrapGitVFS({ dir: vfsDir });
-
-    const client = await createVFSClient({ url: `file:${dbPath}` });
+    const client = await createVFSClient({ 
+        dir: vfsDir,
+        url: `file:${dbPath}` 
+    });
 
     await client.execute('CREATE TABLE large_table (id INTEGER PRIMARY KEY, payload TEXT)');
 

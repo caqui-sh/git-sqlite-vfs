@@ -2,17 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { bootstrapGitVFS } from '../index.js';
+import { createVFSClient, configureGitIntegration } from '../index.js';
 
 test('Node.js: Git VFS intercepts files via @libsql/client and drizzle-orm', async () => {
-    // 1. Execute bootstrap function to load VFS
-    await bootstrapGitVFS({ dir: '.test-db' });
+    // 1. Configure Git integration
+    await configureGitIntegration({ repoDir: process.cwd(), vfsDir: '.test-db' });
 
-    // 2. Initialize @libsql/client using local database URL
-    const client = createClient({
+    // 2. Initialize VFS-enabled client
+    const client = await createVFSClient({
+        dir: '.test-db',
         url: 'file:.test-db'
     });
 
