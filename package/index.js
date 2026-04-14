@@ -45,7 +45,6 @@ async function ensureInitialized(options = {}) {
     let currentExtPath = extensionPath;
     if (!fs.existsSync(currentExtPath)) {
         const writableDir = path.join(_dirname, '.git-sqlite-vfs-bin');
-        await downloadOrBuild(writableDir);
         currentExtPath = path.join(writableDir, `gitvfs.${ext}`);
     }
 
@@ -53,12 +52,8 @@ async function ensureInitialized(options = {}) {
     let Database;
     if (options.libsql) {
         Database = options.libsql.default || options.libsql.Database || options.libsql;
-    } else if (typeof Deno !== 'undefined') {
-        // Deno environment
-        const lib = await import('npm:libsql');
-        Database = lib.default || lib.Database || lib;
     } else {
-        // Node.js environment
+        // Use bare specifier for compatibility with Node and Deno's Node-compat mode
         const lib = await import('libsql');
         Database = lib.default || lib.Database || lib;
     }
@@ -83,8 +78,8 @@ export async function createVFSClient(options) {
     let createClientFn = options.createClient;
     if (!createClientFn) {
         if (typeof Deno !== 'undefined') {
-            // Gracefully default to Node native bindings in Deno to prevent bypassing the VFS
-            const mod = await import('npm:@libsql/client/node');
+            // Use bare specifier; Deno will resolve this via import map or its NPM resolution
+            const mod = await import('@libsql/client/node');
             createClientFn = mod.createClient;
         } else {
             const mod = await import('@libsql/client');

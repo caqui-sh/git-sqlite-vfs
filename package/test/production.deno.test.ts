@@ -17,6 +17,12 @@ Deno.test('Production E2E Deno: Installs from NPM and downloads prebuilt binary'
         });
         const out = runCmd.outputSync();
         const stdout = new TextDecoder().decode(out.stdout);
+        const stderr = new TextDecoder().decode(out.stderr);
+        
+        if (!out.success) {
+            console.log('STDOUT:', stdout);
+            console.error('STDERR:', stderr);
+        }
         
         expect(stdout).toContain('Successfully downloaded and extracted prebuilt binary');
         expect(stdout).not.toContain('Falling back to building from source');
