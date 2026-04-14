@@ -18,15 +18,36 @@ During a Git merge, a custom `git-merge-sqlitevfs` driver integrates with Git's 
 npm install git-sqlite-vfs @libsql/client drizzle-orm
 ```
 
-## Setup
+## CLI Usage
 
-Initialize your repository by running the following command once at project startup:
+The `git-sqlite-vfs` CLI provides essential commands for managing your versioned database. It is designed to replace `drizzle-kit` commands when working with the VFS to ensure changes are correctly applied to the sharded database.
 
+### Setup
+Initialize and configure the current Git repository to use the VFS merge driver. This command ensures the necessary binaries are present and configures the Git merge driver for sharded pages.
 ```bash
-npx git-sqlite-setup
+npx git-sqlite-vfs setup
 ```
 
-This command downloads or builds the necessary native binaries and configures the Git merge driver for your `.db` directory.
+### Schema & Migrations
+These commands integrate with your `drizzle.config` file to automatically detect paths.
+
+**Generate Migrations:**
+Wraps `drizzle-kit generate` to create SQL migration files.
+```bash
+npx git-sqlite-vfs generate
+```
+
+**Push Schema:**
+Generates a new migration and applies it directly to the VFS-enabled database. Use this for rapid development.
+```bash
+npx git-sqlite-vfs push
+```
+
+**Run Migrations:**
+Applies pending migrations from your migrations folder to the database.
+```bash
+npx git-sqlite-vfs migrate
+```
 
 ## Usage
 

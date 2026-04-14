@@ -45,7 +45,8 @@ Usage: git-sqlite-vfs <command> [options]
 
 Commands:
   setup     Initialize and configure the Git repository for the VFS
-  push      Push your schema to the database (requires a schema file)
+  generate  Generate migrations from your schema (via drizzle-kit)
+  push      Push your schema to the database (generate + migrate)
   migrate   Run migrations against the database
 
 General Options:
@@ -63,6 +64,17 @@ Options:
   -r, --repo-dir <path>   Path to the Git repository (default: current working directory)
   -v, --vfs-dir <path>    The VFS shard directory (default: .db)
   -h, --help              Show this help message
+`;
+
+const generateHelpText = `
+Usage: git-sqlite-vfs generate [options]
+
+Generate migrations from your schema using drizzle-kit.
+
+Options:
+  --schema <path>       Path to your drizzle schema file
+  --migrations <path>   Path to your migrations folder (default: 'out' from drizzle.config)
+  -h, --help           Show this help message
 `;
 
 const pushHelpText = `
@@ -131,6 +143,27 @@ async function main() {
             console.log(`Git will now use the custom C merge driver for conflicts inside: ${vfsDir}/*`);
         } catch (err) {
             console.error(`\nFailed to initialize Git integration:`, err.message);
+            process.exit(1);
+        }
+    } else if (command === 'generate') {
+        const schema = values.schema || config.schema;
+        const dialect = config.dialect || 'sqlite';
+
+        console.log(`Generating migrations...`);
+
+        try {
+            const { execSync } = await import('node:child_process');
+            
+            let genCmd = `npx drizzle-kit generate`;
+            if (schema) genCmd += ` --schema ${schema}`;
+            if (dialect) genCmd += ` --dialect ${dialect}`;
+            if (values.migrations) genCmd += ` --out ${values.migrations}`;
+            else if (config.out) genCmd += ` --out ${config.out}`;
+            
+            execSync(genCmd, { stdio: 'inherit' });
+            console.log('\nGeneration completed successfully!');
+        } catch (err) {
+            console.error('\nGeneration failed:', err.message);
             process.exit(1);
         }
     } else if (command === 'migrate') {
