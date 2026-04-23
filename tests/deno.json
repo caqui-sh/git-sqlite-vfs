@@ -1,7 +1,6 @@
 {
   "tasks": {
-    "test:posix": "deno test -A --unstable-ffi os_posix_test.ts",
-    "test:windows": "deno test -A --unstable-ffi os_windows_test.ts"
+    "test": "deno test -A --unstable-ffi integration.test.ts"
   },
   "imports": {
     "@std/expect": "jsr:@std/expect@^1.0.0",

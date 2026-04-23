@@ -3,19 +3,17 @@ import { existsSync } from "@std/fs/exists";
 import * as path from "@std/path";
 import { Database } from "@db/sqlite";
 
-export function getExtensionPath() {
+function getExtensionPath() {
   const base = path.resolve(Deno.cwd(), "../output/gitvfs");
   switch (Deno.build.os) {
     case "darwin":
       return `${base}.dylib`;
-    case "windows":
-      return `${base}.dll`;
     default:
       return `${base}.so`;
   }
 }
 
-export function getDirectorySize(dirPath: string): number {
+function getDirectorySize(dirPath: string): number {
   let size = 0;
   for (const entry of Deno.readDirSync(dirPath)) {
     const entryPath = path.resolve(dirPath, entry.name);
@@ -29,21 +27,41 @@ export function getDirectorySize(dirPath: string): number {
   return size;
 }
 
-export function initVfs(dbDir: string) {
+function initVfs(dbDir: string) {
   Deno.env.set("GIT_SQLITE_VFS_DIR", path.basename(dbDir));
   const loaderDb = new Database(":memory:", { enableLoadExtension: true });
   loaderDb.loadExtension(getExtensionPath());
   loaderDb.close();
   const db = new Database(dbDir);
-  // CRITICAL: Disable WAL mode so Git doesn't track ephemeral .db-wal and .db-shm files
   db.exec("PRAGMA journal_mode=DELETE;");
   return db;
 }
 
-export function registerSharedTests(
-  runGit: (cwd: string, ...args: string[]) => Promise<void>,
-  setupGitProject: (tempDir: string, driverPath: string) => Promise<void>
-) {
+async function runGit(cwd: string, ...args: string[]) {
+  const cmd = new Deno.Command("git", { args, cwd });
+  const { code, stderr } = await cmd.output();
+  if (code !== 0) {
+    throw new Error(`Git command failed: git ${args.join(" ")}\n${new TextDecoder().decode(stderr)}`);
+  }
+}
+
+async function setupGitProject(tempDir: string, driverPath: string) {
+  try {
+    await runGit(tempDir, "init", "-b", "main");
+  } catch {
+    await runGit(tempDir, "init");
+    await runGit(tempDir, "checkout", "-b", "main");
+  }
+  await runGit(tempDir, "config", "user.email", "test@example.com");
+  await runGit(tempDir, "config", "user.name", "Test User");
+
+  const driverDir = path.dirname(driverPath);
+  Deno.env.set("PATH", `${driverDir}:${Deno.env.get("PATH")}`);
+
+  await Deno.writeTextFile(path.resolve(tempDir, "README.md"), "# Test Project\n");
+  await runGit(tempDir, "add", "README.md");
+  await runGit(tempDir, "commit", "-m", "Initial commit");
+}
 
 Deno.test("GitVFS Scale: Repository Anti-Bloat", async (t) => {
   const tempDir = Deno.makeTempDirSync({ prefix: "gitvfs_scale_" });
@@ -67,7 +85,7 @@ Deno.test("GitVFS Scale: Repository Anti-Bloat", async (t) => {
     });
 
     await runGit(tempDir, "add", "-A");
-    await runGit(tempDir, "commit", "-m", "Initial_database_state");
+    await runGit(tempDir, "commit", "-m", "Initial database state");
 
     const baselineSize = getDirectorySize(path.resolve(tempDir, ".git/objects"));
     console.log(`  Baseline .git/objects size: ${baselineSize} bytes`);
@@ -75,14 +93,13 @@ Deno.test("GitVFS Scale: Repository Anti-Bloat", async (t) => {
     await t.step("Mutate data over 20 commits", async () => {
       for (let commitIdx = 0; commitIdx < 20; commitIdx++) {
         const db = initVfs(dbDir);
-        // Mutate 10 scattered rows to ensure we touch different pages
         for (let i = 0; i < 10; i++) {
           const id = (commitIdx * 10 + i) * 100 % 10000 + 1;
           db.exec(`UPDATE users SET data = 'mutated in commit ${commitIdx}' WHERE id = ${id};`);
         }
         db.close();
         await runGit(tempDir, "add", "-A");
-        await runGit(tempDir, "commit", "-m", `Update_batch_${commitIdx}`);
+        await runGit(tempDir, "commit", "-m", `Update batch ${commitIdx}`);
       }
     });
 
@@ -92,21 +109,10 @@ Deno.test("GitVFS Scale: Repository Anti-Bloat", async (t) => {
     console.log(`  Total growth over 20 commits: ${growth} bytes`);
 
     await t.step("Assert anti-bloat property", () => {
-      // Each commit should only store a handful of 4KB pages.
-      // 20 commits * (~4-5 pages) * 4KB per page = ~400KB total growth.
-      // If we committed the whole 1MB+ database 20 times, growth would be > 20MB.
-      // We'll set a generous threshold of 1MB to prove it's NOT a full duplication.
       expect(growth).toBeLessThan(1024 * 1024); // 1MB threshold
     });
   } finally {
     Deno.removeSync(tempDir, { recursive: true });
-    try {
-      for (const entry of Deno.readDirSync("/tmp")) {
-        if (entry.name.startsWith("gitvfs_")) {
-          Deno.removeSync(path.resolve("/tmp", entry.name), { recursive: true });
-        }
-      }
-    } catch {}
   }
 });
 
@@ -132,14 +138,11 @@ Deno.test("GitVFS Edge Cases: Large Data & Paging", async (t) => {
     });
 
     await t.step("Verify multiple pages exist", () => {
-      // Check if we have more than a few page files. 
-      // 5000 rows with ~100 bytes each should be > 500KB, which is > 120 pages (4KB each).
       let pageCount = 0;
       for (const entry of Deno.readDirSync(path.resolve(dbDir, "pages"))) {
         if (entry.isDirectory) {
           for (const sub of Deno.readDirSync(path.resolve(dbDir, "pages", entry.name))) {
             if (sub.isDirectory) {
-              // and so on... let's just use a recursive counter or a simple check for the first few levels
               pageCount++; 
             }
           }
@@ -150,13 +153,6 @@ Deno.test("GitVFS Edge Cases: Large Data & Paging", async (t) => {
     });
   } finally {
     Deno.removeSync(tempDir, { recursive: true });
-    try {
-      for (const entry of Deno.readDirSync("/tmp")) {
-        if (entry.name.startsWith("gitvfs_")) {
-          Deno.removeSync(path.resolve("/tmp", entry.name), { recursive: true });
-        }
-      }
-    } catch {}
   }
 });
 
@@ -185,13 +181,6 @@ Deno.test("GitVFS Edge Cases: Database Vacuum", async (t) => {
     });
   } finally {
     Deno.removeSync(tempDir, { recursive: true });
-    try {
-      for (const entry of Deno.readDirSync("/tmp")) {
-        if (entry.name.startsWith("gitvfs_")) {
-          Deno.removeSync(path.resolve("/tmp", entry.name), { recursive: true });
-        }
-      }
-    } catch {}
   }
 });
 
@@ -222,13 +211,6 @@ Deno.test("GitVFS Edge Cases: Transaction Rollbacks", async (t) => {
     });
   } finally {
     Deno.removeSync(tempDir, { recursive: true });
-    try {
-      for (const entry of Deno.readDirSync("/tmp")) {
-        if (entry.name.startsWith("gitvfs_")) {
-          Deno.removeSync(path.resolve("/tmp", entry.name), { recursive: true });
-        }
-      }
-    } catch {}
   }
 });
 
@@ -247,7 +229,7 @@ Deno.test("Merge Driver: Concurrent Inserts", async (t) => {
     });
 
     await runGit(tempDir, "add", "-A");
-    await runGit(tempDir, "commit", "-m", "Create_database");
+    await runGit(tempDir, "commit", "-m", "Create database");
 
     await t.step("Branch A: Insert Alice", async () => {
       await runGit(tempDir, "checkout", "-b", "branch-a");
@@ -255,7 +237,7 @@ Deno.test("Merge Driver: Concurrent Inserts", async (t) => {
       db.exec("INSERT INTO users (id, name) VALUES (1, 'Alice');");
       db.close();
       await runGit(tempDir, "add", "-A");
-      await runGit(tempDir, "commit", "-m", "Add_Alice");
+      await runGit(tempDir, "commit", "-m", "Add Alice");
     });
 
     await t.step("Branch B: Insert Bob", async () => {
@@ -265,8 +247,9 @@ Deno.test("Merge Driver: Concurrent Inserts", async (t) => {
       db.exec("INSERT INTO users (id, name) VALUES (2, 'Bob');");
       db.close();
       await runGit(tempDir, "add", "-A");
-      await runGit(tempDir, "commit", "-m", "Add_Bob");
+      await runGit(tempDir, "commit", "-m", "Add Bob");
     });
+    
     await t.step("Merge B into A", async () => {
       await runGit(tempDir, "checkout", "branch-a");
       await runGit(tempDir, "merge", "-s", "sqlitevfs", "branch-b");
@@ -282,13 +265,6 @@ Deno.test("Merge Driver: Concurrent Inserts", async (t) => {
     });
   } finally {
     Deno.removeSync(tempDir, { recursive: true });
-    try {
-      for (const entry of Deno.readDirSync("/tmp")) {
-        if (entry.name.startsWith("gitvfs_")) {
-          Deno.removeSync(path.resolve("/tmp", entry.name), { recursive: true });
-        }
-      }
-    } catch {}
   }
 });
 
@@ -307,7 +283,7 @@ Deno.test("Merge Driver: Primary Key Conflict", async (t) => {
     });
 
     await runGit(tempDir, "add", "-A");
-    await runGit(tempDir, "commit", "-m", "Create_database");
+    await runGit(tempDir, "commit", "-m", "Create database");
 
     await t.step("Branch A: Insert Alice as ID 1", async () => {
       await runGit(tempDir, "checkout", "-b", "branch-a");
@@ -315,7 +291,7 @@ Deno.test("Merge Driver: Primary Key Conflict", async (t) => {
       db.exec("INSERT INTO users (id, name) VALUES (1, 'Alice');");
       db.close();
       await runGit(tempDir, "add", "-A");
-      await runGit(tempDir, "commit", "-m", "Add_Alice");
+      await runGit(tempDir, "commit", "-m", "Add Alice");
     });
 
     await t.step("Branch B: Insert Bob as ID 1", async () => {
@@ -325,7 +301,7 @@ Deno.test("Merge Driver: Primary Key Conflict", async (t) => {
       db.exec("INSERT INTO users (id, name) VALUES (1, 'Bob');");
       db.close();
       await runGit(tempDir, "add", "-A");
-      await runGit(tempDir, "commit", "-m", "Add_Bob");
+      await runGit(tempDir, "commit", "-m", "Add Bob");
     });
 
     await t.step("Merge B into A", async () => {
@@ -342,13 +318,6 @@ Deno.test("Merge Driver: Primary Key Conflict", async (t) => {
     });
   } finally {
     Deno.removeSync(tempDir, { recursive: true });
-    try {
-      for (const entry of Deno.readDirSync("/tmp")) {
-        if (entry.name.startsWith("gitvfs_")) {
-          Deno.removeSync(path.resolve("/tmp", entry.name), { recursive: true });
-        }
-      }
-    } catch {}
   }
 });
 
@@ -374,7 +343,7 @@ Deno.test("Merge Driver Scale: Large Data Volume & Conflicts", async (t) => {
     });
 
     await runGit(tempDir, "add", "-A");
-    await runGit(tempDir, "commit", "-m", "Initial_5000_users");
+    await runGit(tempDir, "commit", "-m", "Initial 5000 users");
 
     await t.step("Branch A: Add 10000 rows (5001-15000)", async () => {
       await runGit(tempDir, "checkout", "-b", "branch-a");
@@ -387,7 +356,7 @@ Deno.test("Merge Driver Scale: Large Data Volume & Conflicts", async (t) => {
       db.exec("COMMIT;");
       db.close();
       await runGit(tempDir, "add", "-A");
-      await runGit(tempDir, "commit", "-m", "Branch_A_adds_10k");
+      await runGit(tempDir, "commit", "-m", "Branch A adds 10k");
     });
 
     await t.step("Branch B: Add 10000 rows (10001-20000, 50% conflict)", async () => {
@@ -402,12 +371,11 @@ Deno.test("Merge Driver Scale: Large Data Volume & Conflicts", async (t) => {
       db.exec("COMMIT;");
       db.close();
       await runGit(tempDir, "add", "-A");
-      await runGit(tempDir, "commit", "-m", "Branch_B_adds_10k_with_overlaps");
+      await runGit(tempDir, "commit", "-m", "Branch B adds 10k with overlaps");
     });
 
     await t.step("Merge B into A", async () => {
       await runGit(tempDir, "checkout", "branch-a");
-      // This will involve 5000 PK conflicts
       await runGit(tempDir, "merge", "-s", "sqlitevfs", "branch-b");
     });
 
@@ -416,20 +384,12 @@ Deno.test("Merge Driver Scale: Large Data Volume & Conflicts", async (t) => {
       const [{ count }] = db.prepare("SELECT count(*) as count FROM users;").all<{ count: number }>();
       expect(count).toBe(20000);
 
-      // Verify that for conflicting IDs (e.g., 12000), Branch A's data persists
       const rows = db.prepare("SELECT name FROM users WHERE id = 12000;").all<{ name: string }>();
       expect(rows[0].name).toBe("A-User 12000");
       db.close();
     });
   } finally {
     Deno.removeSync(tempDir, { recursive: true });
-    try {
-      for (const entry of Deno.readDirSync("/tmp")) {
-        if (entry.name.startsWith("gitvfs_")) {
-          Deno.removeSync(path.resolve("/tmp", entry.name), { recursive: true });
-        }
-      }
-    } catch {}
   }
 });
 
@@ -448,7 +408,7 @@ Deno.test("Merge Driver Scale: Schema Buffer Limits", async (t) => {
       db.close();
     });
     await runGit(tempDir, "add", "-A");
-    await runGit(tempDir, "commit", "-m", "Init_baseline");
+    await runGit(tempDir, "commit", "-m", "Init baseline");
 
     await t.step("Branch A: Minor change", async () => {
       await runGit(tempDir, "checkout", "-b", "branch-a");
@@ -456,29 +416,25 @@ Deno.test("Merge Driver Scale: Schema Buffer Limits", async (t) => {
       db.exec("CREATE TABLE a_marker (id INTEGER);");
       db.close();
       await runGit(tempDir, "add", "-A");
-      await runGit(tempDir, "commit", "-m", "Branch_A_change");
+      await runGit(tempDir, "commit", "-m", "Branch A change");
     });
 
-    await t.step("Branch B: 2000 Tables (Exceeding 1MB Schema)", async () => {
+    await t.step("Branch B: 2000 Tables", async () => {
       await runGit(tempDir, "checkout", "main");
       await runGit(tempDir, "checkout", "-b", "branch-b");
       const db = initVfs(dbPath);
       db.exec("BEGIN;");
       for (let i = 0; i < 2000; i++) {
-        // Each statement is ~50-60 bytes, 2000 tables is ~120KB. 
-        // Wait, the C buffer is 1MB. Let's do 20,000 tables.
-        // Or 5,000 tables with slightly longer names and columns.
         db.exec(`CREATE TABLE big_schema_table_with_a_long_name_${i} (id INTEGER, data TEXT, more_data TEXT, even_more_data TEXT);`);
       }
       db.exec("COMMIT;");
       db.close();
       await runGit(tempDir, "add", "-A");
-      await runGit(tempDir, "commit", "-m", "Branch_B_massive_schema");
+      await runGit(tempDir, "commit", "-m", "Branch B massive schema");
     });
 
     await t.step("Merge B into A", async () => {
       await runGit(tempDir, "checkout", "branch-a");
-      // This will likely trigger the 1MB buffer limit in the C code if we're not careful
       await runGit(tempDir, "merge", "-s", "sqlitevfs", "branch-b");
     });
 
@@ -490,13 +446,5 @@ Deno.test("Merge Driver Scale: Schema Buffer Limits", async (t) => {
     });
   } finally {
     Deno.removeSync(tempDir, { recursive: true });
-    try {
-      for (const entry of Deno.readDirSync("/tmp")) {
-        if (entry.name.startsWith("gitvfs_")) {
-          Deno.removeSync(path.resolve("/tmp", entry.name), { recursive: true });
-        }
-      }
-    } catch {}
   }
 });
-}

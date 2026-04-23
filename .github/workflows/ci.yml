@@ -15,7 +15,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -46,8 +46,4 @@ jobs:
         shell: bash
         run: |
           cd tests
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            deno test -A --unstable-ffi os_windows_test.ts
-          else
-            deno test -A --unstable-ffi os_posix_test.ts
-          fi
+          deno task test
