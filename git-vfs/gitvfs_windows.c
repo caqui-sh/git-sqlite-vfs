@@ -288,7 +288,8 @@ static int gitvfs_Truncate(sqlite3_file *pFile, sqlite3_int64 size) {
         return SQLITE_OK;
     }
 
-    // Sharded DB truncate logic    sqlite3_int64 new_max_page = (size == 0) ? -1 : (size - 1) / GITVFS_PAGE_SIZE;
+    // Sharded DB truncate logic
+    sqlite3_int64 new_max_page = (size == 0) ? -1 : (size - 1) / GITVFS_PAGE_SIZE;
     
     // Clean up abandoned page files
     for (sqlite3_int64 i = new_max_page + 1; i <= p->max_page_number; i++) {
