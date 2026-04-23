@@ -3,7 +3,7 @@ import { existsSync } from "@std/fs/exists";
 import * as path from "@std/path";
 import { Database } from "@db/sqlite";
 
-function getExtensionPath() {
+export function getExtensionPath() {
   const base = path.resolve(Deno.cwd(), "../output/gitvfs");
   switch (Deno.build.os) {
     case "darwin":
@@ -15,7 +15,7 @@ function getExtensionPath() {
   }
 }
 
-function getDirectorySize(dirPath: string): number {
+export function getDirectorySize(dirPath: string): number {
   let size = 0;
   for (const entry of Deno.readDirSync(dirPath)) {
     const entryPath = path.resolve(dirPath, entry.name);
@@ -29,7 +29,7 @@ function getDirectorySize(dirPath: string): number {
   return size;
 }
 
-function initVfs(dbDir: string) {
+export function initVfs(dbDir: string) {
   Deno.env.set("GIT_SQLITE_VFS_DIR", path.basename(dbDir));
   const loaderDb = new Database(":memory:", { enableLoadExtension: true });
   loaderDb.loadExtension(getExtensionPath());
@@ -39,6 +39,11 @@ function initVfs(dbDir: string) {
   db.exec("PRAGMA journal_mode=DELETE;");
   return db;
 }
+
+export function registerSharedTests(
+  runGit: (cwd: string, ...args: string[]) => Promise<void>,
+  setupGitProject: (tempDir: string, driverPath: string) => Promise<void>
+) {
 
 Deno.test("GitVFS Scale: Repository Anti-Bloat", async (t) => {
   const tempDir = Deno.makeTempDirSync({ prefix: "gitvfs_scale_" });
@@ -226,62 +231,6 @@ Deno.test("GitVFS Edge Cases: Transaction Rollbacks", async (t) => {
     } catch {}
   }
 });
-
-async function runGit(cwd: string, ...args: string[]) {
-  // On Windows, space-containing arguments in git commit -m can fail if not explicitly quoted
-  // because of how Deno.Command interacts with the Windows shell. We manually wrap space-containing args in quotes, 
-  // but we intentionally leave windowsRawArguments false to avoid breaking the core PATH execution.
-  const processedArgs = (Deno.build.os === "windows") 
-    ? args.map(arg => (arg.includes(" ") && !arg.startsWith("\"")) ? `"${arg}"` : arg)
-    : args;
-
-  const cmd = new Deno.Command("git", { args: processedArgs, cwd });
-  const { code, stderr } = await cmd.output();
-  if (code !== 0) {
-    throw new Error(`Git command failed: git ${args.join(" ")}\n${new TextDecoder().decode(stderr)}`);
-  }
-}
-
-async function setupGitProject(tempDir: string, driverPath: string) {
-  try {
-    await runGit(tempDir, "init", "-b", "main");
-  } catch {
-    await runGit(tempDir, "init");
-    await runGit(tempDir, "checkout", "-b", "main");
-  }
-  await runGit(tempDir, "config", "user.email", "test@example.com");
-  await runGit(tempDir, "config", "user.name", "Test User");
-
-  // Add our custom strategy to the PATH for Git to find it
-  const driverDir = path.dirname(driverPath);
-  const pathDelimiter = Deno.build.os === "windows" ? ";" : ":";
-  const oldPath = Deno.env.get("PATH") || Deno.env.get("Path") || "";
-  const newPath = `${driverDir}${pathDelimiter}${oldPath}`;
-  
-  Deno.env.set("PATH", newPath);
-  if (Deno.build.os === "windows") {
-    Deno.env.set("Path", newPath);
-  }
-
-  // On Windows, Git expects the strategy to be named exactly 'git-merge-sqlitevfs' 
-  // without the .exe extension if it's placed in the PATH. We'll write multiple wrappers.
-  if (Deno.build.os === "windows") {
-    const exeName = "git-merge-sqlitevfs.exe";
-    
-    // Create bash wrapper (Git for Windows uses bash for strategy resolution)
-    const bashWrapper = path.resolve(driverDir, "git-merge-sqlitevfs");
-    Deno.writeTextFileSync(bashWrapper, `#!/bin/sh\nexec "$(dirname "$0")/${exeName}" "$@"\n`);
-    
-    // Create cmd wrapper just in case
-    const cmdWrapper = path.resolve(driverDir, "git-merge-sqlitevfs.cmd");
-    Deno.writeTextFileSync(cmdWrapper, `@echo off\n"%~dp0${exeName}" %*\n`);
-  }
-
-  // We need at least one commit so we can branch from it.
-  await Deno.writeTextFile(path.resolve(tempDir, "README.md"), "# Test Project\n");
-  await runGit(tempDir, "add", "README.md");
-  await runGit(tempDir, "commit", "-m", "Initial_commit");
-}
 
 Deno.test("Merge Driver: Concurrent Inserts", async (t) => {
   const tempDir = Deno.makeTempDirSync({ prefix: "merge_concurrent_" });
@@ -550,3 +499,4 @@ Deno.test("Merge Driver Scale: Schema Buffer Limits", async (t) => {
     } catch {}
   }
 });
+}
