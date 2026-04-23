@@ -448,3 +448,184 @@ Deno.test("Merge Driver Scale: Schema Buffer Limits", async (t) => {
     Deno.removeSync(tempDir, { recursive: true });
   }
 });
+
+Deno.test("Merge Driver: Update and Delete Conflicts", async (t) => {
+  const tempDir = Deno.makeTempDirSync({ prefix: "merge_update_delete_" });
+  const driverPath = path.resolve(Deno.cwd(), "../output/git-merge-sqlitevfs");
+  const dbPath = path.resolve(tempDir, "update_delete.db");
+
+  try {
+    await setupGitProject(tempDir, driverPath);
+
+    await t.step("Setup base database", () => {
+      const db = initVfs(dbPath);
+      db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);");
+      db.exec("INSERT INTO users (id, name) VALUES (1, 'Base');");
+      db.close();
+    });
+
+    await runGit(tempDir, "add", "-A");
+    await runGit(tempDir, "commit", "-m", "Create database");
+
+    await t.step("Branch A: Update row", async () => {
+      await runGit(tempDir, "checkout", "-b", "branch-a");
+      const db = initVfs(dbPath);
+      db.exec("UPDATE users SET name = 'Alice' WHERE id = 1;");
+      db.close();
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Update to Alice");
+    });
+
+    await t.step("Branch B: Delete row", async () => {
+      await runGit(tempDir, "checkout", "main");
+      await runGit(tempDir, "checkout", "-b", "branch-b");
+      const db = initVfs(dbPath);
+      db.exec("DELETE FROM users WHERE id = 1;");
+      db.close();
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Delete row");
+    });
+
+    await t.step("Merge B into A", async () => {
+      await runGit(tempDir, "checkout", "branch-a");
+      await runGit(tempDir, "merge", "-s", "sqlitevfs", "branch-b");
+    });
+
+    await t.step("Verify Alice remains (local changes favored)", () => {
+      const db = initVfs(dbPath);
+      const rows = db.prepare("SELECT name FROM users").all<{ name: string }>();
+      expect(rows.length).toBe(1);
+      expect(rows[0].name).toBe("Alice");
+      db.close();
+    });
+  } finally {
+    Deno.removeSync(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("Merge Driver: Schema Evolution and Migrations", async (t) => {
+  const tempDir = Deno.makeTempDirSync({ prefix: "merge_schema_evolution_" });
+  const driverPath = path.resolve(Deno.cwd(), "../output/git-merge-sqlitevfs");
+  const dbPath = path.resolve(tempDir, "schema_evo.db");
+
+  try {
+    await setupGitProject(tempDir, driverPath);
+
+    await t.step("Setup base database", () => {
+      const db = initVfs(dbPath);
+      db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);");
+      db.exec("INSERT INTO users (id, name) VALUES (1, 'Base User');");
+      db.close();
+    });
+
+    await runGit(tempDir, "add", "-A");
+    await runGit(tempDir, "commit", "-m", "Create database");
+
+    await t.step("Branch A: Alter table add column", async () => {
+      await runGit(tempDir, "checkout", "-b", "branch-a");
+      const db = initVfs(dbPath);
+      db.exec("ALTER TABLE users ADD COLUMN age INTEGER;");
+      db.exec("UPDATE users SET age = 30 WHERE id = 1;");
+      db.close();
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Add age column");
+    });
+
+    await t.step("Branch B: Insert with old schema", async () => {
+      await runGit(tempDir, "checkout", "main");
+      await runGit(tempDir, "checkout", "-b", "branch-b");
+      const db = initVfs(dbPath);
+      db.exec("INSERT INTO users (id, name) VALUES (2, 'Bob');");
+      db.close();
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Add Bob");
+    });
+
+    await t.step("Merge B into A", async () => {
+      await runGit(tempDir, "checkout", "branch-a");
+      await runGit(tempDir, "merge", "-s", "sqlitevfs", "branch-b");
+    });
+
+    await t.step("Verify both changes applied", () => {
+      const db = initVfs(dbPath);
+      const rows = db.prepare("SELECT id, name, age FROM users ORDER BY id").all<{ id: number, name: string, age: number | null }>();
+      expect(rows.length).toBe(2);
+      expect(rows[0].name).toBe("Base User");
+      expect(rows[0].age).toBe(30);
+      expect(rows[1].name).toBe("Bob");
+      expect(rows[1].age).toBe(null);
+      db.close();
+    });
+  } finally {
+    Deno.removeSync(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("Merge Driver: Foreign Key Constraints", async (t) => {
+  const tempDir = Deno.makeTempDirSync({ prefix: "merge_fk_constraints_" });
+  const driverPath = path.resolve(Deno.cwd(), "../output/git-merge-sqlitevfs");
+  const dbPath = path.resolve(tempDir, "fk_constraints.db");
+
+  try {
+    await setupGitProject(tempDir, driverPath);
+
+    await t.step("Setup base database", () => {
+      const db = initVfs(dbPath);
+      db.exec("PRAGMA foreign_keys = ON;");
+      db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);");
+      db.exec("CREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER, title TEXT, FOREIGN KEY(user_id) REFERENCES users(id));");
+      db.close();
+    });
+
+    await runGit(tempDir, "add", "-A");
+    await runGit(tempDir, "commit", "-m", "Create tables");
+
+    await t.step("Branch A: Insert Alice and post", async () => {
+      await runGit(tempDir, "checkout", "-b", "branch-a");
+      const db = initVfs(dbPath);
+      db.exec("PRAGMA foreign_keys = ON;");
+      db.exec("INSERT INTO users (id, name) VALUES (1, 'Alice');");
+      db.exec("INSERT INTO posts (id, user_id, title) VALUES (1, 1, 'Alice Post');");
+      db.close();
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Add Alice");
+    });
+
+    await t.step("Branch B: Insert Bob and post", async () => {
+      await runGit(tempDir, "checkout", "main");
+      await runGit(tempDir, "checkout", "-b", "branch-b");
+      const db = initVfs(dbPath);
+      db.exec("PRAGMA foreign_keys = ON;");
+      db.exec("INSERT INTO users (id, name) VALUES (2, 'Bob');");
+      db.exec("INSERT INTO posts (id, user_id, title) VALUES (2, 2, 'Bob Post');");
+      db.close();
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Add Bob");
+    });
+
+    await t.step("Merge B into A", async () => {
+      await runGit(tempDir, "checkout", "branch-a");
+      await runGit(tempDir, "merge", "-s", "sqlitevfs", "branch-b");
+    });
+
+    await t.step("Verify no FK violations and data intact", () => {
+      const db = initVfs(dbPath);
+      db.exec("PRAGMA foreign_keys = ON;");
+      const violations = db.prepare("PRAGMA foreign_key_check;").all();
+      expect(violations.length).toBe(0);
+
+      const users = db.prepare("SELECT name FROM users ORDER BY id").all<{ name: string }>();
+      expect(users.length).toBe(2);
+      expect(users[0].name).toBe("Alice");
+      expect(users[1].name).toBe("Bob");
+
+      const posts = db.prepare("SELECT title FROM posts ORDER BY id").all<{ title: string }>();
+      expect(posts.length).toBe(2);
+      expect(posts[0].title).toBe("Alice Post");
+      expect(posts[1].title).toBe("Bob Post");
+      db.close();
+    });
+  } finally {
+    Deno.removeSync(tempDir, { recursive: true });
+  }
+});

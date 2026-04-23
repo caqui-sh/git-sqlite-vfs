@@ -57,10 +57,17 @@ git config merge.sqlitevfs.name "SQLite VFS Merge Driver"
 git config merge.sqlitevfs.driver "/path/to/output/git-merge-sqlitevfs %O %A %B %L %P"
 ```
 
+### Concurrency Model
+
+Concurrent connections to the same local database directory are **not currently supported**. 
+
+The concurrency model of this project is designed around Git's distributed architecture: each user or process should have its own independent local copy of the repository and database. Changes are made in isolation to these local copies and are eventually pushed to a remote repository. Concurrency and conflict resolution are then handled during the merge process by the custom `git-merge-sqlitevfs` driver.
+
 ## Future Testing Work
 
 While the current test suite provides significant coverage for functional correctness and scale, the following scenarios are planned for future verification:
 
 - [ ] **VFS: Large BLOBs (Overflow Pages)**: Assert that single rows exceeding the 4KB page size (e.g., 10MB images or JSON) are correctly sharded into linked overflow pages across the file system without corruption.
 - [ ] **VFS: Concurrency & File Locking**: Assert that OS-level file locking works correctly across the sharded `.bin` file architecture when multiple database connections attempt simultaneous read/write operations.
+- [ ] **VFS: Alternate Journal Modes**: Test compatibility and handling of PRAGMA journal_mode=WAL (Write-Ahead Logging), ensuring that `-wal` and `-shm` files are either safely rejected or cleanly managed by the VFS without corrupting the sharded structure.
 
