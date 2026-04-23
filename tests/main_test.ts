@@ -225,7 +225,14 @@ Deno.test("GitVFS Edge Cases: Transaction Rollbacks", async (t) => {
 });
 
 async function runGit(cwd: string, ...args: string[]) {
-  const cmd = new Deno.Command("git", { args, cwd });
+  // On Windows, space-containing arguments in git commit -m can fail if not explicitly quoted
+  // because of how Deno.Command interacts with the Windows shell. We manually wrap space-containing args in quotes, 
+  // but we intentionally leave windowsRawArguments false to avoid breaking the core PATH execution.
+  const processedArgs = (Deno.build.os === "windows") 
+    ? args.map(arg => (arg.includes(" ") && !arg.startsWith("\"")) ? `"${arg}"` : arg)
+    : args;
+
+  const cmd = new Deno.Command("git", { args: processedArgs, cwd });
   const { code, stderr } = await cmd.output();
   if (code !== 0) {
     throw new Error(`Git command failed: git ${args.join(" ")}\n${new TextDecoder().decode(stderr)}`);
@@ -247,12 +254,22 @@ async function setupGitProject(tempDir: string, driverPath: string) {
   Deno.env.set("PATH", `${driverDir}:${Deno.env.get("PATH")}`);
 
   // On Windows, Git expects the strategy to be named exactly 'git-merge-sqlitevfs' 
-  // without the .exe extension if it's placed in the PATH. We'll write a bash wrapper.
+  // without the .exe extension if it's placed in the PATH. We'll write multiple wrappers.
   if (Deno.build.os === "windows") {
-    const wrapperPath = driverPath;
     const exeName = "git-merge-sqlitevfs.exe";
-    const wrapperContent = `#!/bin/bash\nexec "$(dirname "$0")/${exeName}" "$@"\n`;
-    Deno.writeTextFileSync(wrapperPath, wrapperContent);
+    
+    // Create bash wrapper
+    const bashWrapper = path.resolve(driverDir, "git-merge-sqlitevfs");
+    Deno.writeTextFileSync(bashWrapper, `#!/bin/bash\nexec "$(dirname "$0")/${exeName}" "$@"\n`);
+    
+    // Create cmd wrapper just in case Git invokes cmd.exe
+    const cmdWrapper = path.resolve(driverDir, "git-merge-sqlitevfs.cmd");
+    Deno.writeTextFileSync(cmdWrapper, `@echo off\n"%~dp0${exeName}" %*\n`);
+    
+    // Also try a direct copy
+    if (existsSync(driverPath + ".exe") && !existsSync(driverPath)) {
+        Deno.copyFileSync(driverPath + ".exe", driverPath);
+    }
   }
 
   // We need at least one commit so we can branch from it.

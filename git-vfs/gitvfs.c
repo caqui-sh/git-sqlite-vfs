@@ -309,11 +309,17 @@ static int gitvfs_Truncate(sqlite3_file *pFile, sqlite3_int64 size) {
         if (new_max_page == -1) {
             remove(meta_path); // DB is completely empty
         } else {
-            FILE *f = fopen(meta_path, "w");
-            if (f) {
-                fprintf(f, "%lld\n", (long long)p->max_page_number);
-                fflush(f);
-                fclose(f);
+            int fd = open(meta_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+            if (fd >= 0) {
+                char buf[64];
+                int len = snprintf(buf, sizeof(buf), "%lld\n", (long long)p->max_page_number);
+                write(fd, buf, len);
+#ifdef _WIN32
+                _commit(fd);
+#else
+                fsync(fd);
+#endif
+                close(fd);
             }
         }
     }
@@ -338,14 +344,19 @@ static int gitvfs_Sync(sqlite3_file *pFile, int flags) {
     if (p->max_page_number != -1) {
         char meta_path[GITVFS_MAX_PATH];
         snprintf(meta_path, sizeof(meta_path), "%s/pages/size.meta", p->base_dir);
-        FILE *f = fopen(meta_path, "w");
-        if (f) {
-            fprintf(f, "%lld\n", (long long)p->max_page_number);
-            fflush(f);
+        
+        // Use lower level open/write for size.meta to easily allow _commit on Windows
+        int fd = open(meta_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+        if (fd >= 0) {
+            char buf[64];
+            int len = snprintf(buf, sizeof(buf), "%lld\n", (long long)p->max_page_number);
+            write(fd, buf, len);
 #ifdef _WIN32
-            _commit(_fileno(f));
+            _commit(fd);
+#else
+            fsync(fd);
 #endif
-            fclose(f);
+            close(fd);
         }
     }
 
