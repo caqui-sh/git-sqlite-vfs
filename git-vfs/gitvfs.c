@@ -10,7 +10,13 @@ SQLITE_EXTENSION_INIT1
 #include <string.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#define ftruncate _chsize
+#else
 #include <unistd.h>
+#endif
 #include <errno.h>
 
 #define GITVFS_PAGE_SIZE 4096
@@ -314,13 +320,35 @@ static int gitvfs_Truncate(sqlite3_file *pFile, sqlite3_int64 size) {
 }
 
 static int gitvfs_Sync(sqlite3_file *pFile, int flags) {
-    (void)pFile; (void)flags;
-    // Single-writer MVP relying on standard POSIX disk flushes.
-    // For temp files we could call fsync(p->flat_fd). 
-    // Returning SQLITE_OK satisfies SQLite's expectation.
-    return SQLITE_OK; 
-}
+    gitvfs_file *p = (gitvfs_file*)pFile;
+    (void)flags;
 
+    if (!p->is_main_db) {
+#ifdef _WIN32
+        _commit(p->flat_fd);
+#else
+        fsync(p->flat_fd);
+#endif
+        return SQLITE_OK;
+    }
+
+    // For sharded DB, ensure size.meta is flushed
+    if (p->max_page_number != -1) {
+        char meta_path[GITVFS_MAX_PATH];
+        snprintf(meta_path, sizeof(meta_path), "%s/pages/size.meta", p->base_dir);
+        FILE *f = fopen(meta_path, "w");
+        if (f) {
+            fprintf(f, "%lld\n", (long long)p->max_page_number);
+            fflush(f);
+#ifdef _WIN32
+            _commit(_fileno(f));
+#endif
+            fclose(f);
+        }
+    }
+
+    return SQLITE_OK;
+}
 static int gitvfs_FileSize(sqlite3_file *pFile, sqlite3_int64 *pSize) {
     gitvfs_file *p = (gitvfs_file*)pFile;
     

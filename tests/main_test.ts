@@ -225,7 +225,17 @@ Deno.test("GitVFS Edge Cases: Transaction Rollbacks", async (t) => {
 });
 
 async function runGit(cwd: string, ...args: string[]) {
-  const cmd = new Deno.Command("git", { args, cwd });
+  // On Windows, space-containing arguments in git commit -m can fail if not explicitly quoted
+  // because of how Deno.Command interacts with the Windows shell.
+  const processedArgs = (Deno.build.os === "windows") 
+    ? args.map(arg => (arg.includes(" ") && !arg.startsWith("\"")) ? `"${arg}"` : arg)
+    : args;
+
+  const cmd = new Deno.Command("git", { 
+    args: processedArgs, 
+    cwd,
+    windowsRawArguments: (Deno.build.os === "windows") // Pass arguments raw to avoid Deno escaping conflicts
+  });
   const { code, stderr } = await cmd.output();
   if (code !== 0) {
     throw new Error(`Git command failed: git ${args.join(" ")}\n${new TextDecoder().decode(stderr)}`);
@@ -247,13 +257,12 @@ async function setupGitProject(tempDir: string, driverPath: string) {
   Deno.env.set("PATH", `${driverDir}:${Deno.env.get("PATH")}`);
 
   // On Windows, Git expects the strategy to be named exactly 'git-merge-sqlitevfs' 
-  // without the .exe extension if it's placed in the PATH.
+  // without the .exe extension if it's placed in the PATH. We'll write a bash wrapper.
   if (Deno.build.os === "windows") {
-    const exePath = `${driverPath}.exe`;
-    const noExePath = driverPath;
-    if (existsSync(exePath) && !existsSync(noExePath)) {
-        Deno.copyFileSync(exePath, noExePath);
-    }
+    const wrapperPath = driverPath;
+    const exeName = "git-merge-sqlitevfs.exe";
+    const wrapperContent = `#!/bin/bash\nexec "$(dirname "$0")/${exeName}" "$@"\n`;
+    Deno.writeTextFileSync(wrapperPath, wrapperContent);
   }
 
   // We need at least one commit so we can branch from it.
