@@ -111,11 +111,13 @@ int main(int argc, char *argv[]) {
         }
 
         char attach_base[1024];
-        snprintf(attach_base, sizeof(attach_base), "ATTACH DATABASE '.vfs_base/%s' AS ancestor;", base_dir);
+        snprintf(attach_base, sizeof(attach_base), "ATTACH DATABASE '.vfs_base/%s' AS ancestor KEY '';", base_dir);
+        // SQLite doesn't support a direct 'READONLY' flag in ATTACH SQL, 
+        // but our VFS fallback logic in winOpen will now handle it automatically.
         sqlite3_exec(db_local, attach_base, NULL, 0, NULL);
 
         char attach_remote[1024];
-        snprintf(attach_remote, sizeof(attach_remote), "ATTACH DATABASE '.vfs_remote/%s' AS other;", base_dir);
+        snprintf(attach_remote, sizeof(attach_remote), "ATTACH DATABASE '.vfs_remote/%s' AS other KEY '';", base_dir);
         sqlite3_exec(db_local, attach_remote, NULL, 0, NULL);
 
         // Schema Reconciliation: Phase 1 (Drops)

@@ -504,8 +504,17 @@ static int gitvfs_Open(sqlite3_vfs *pVfs, const char *zName, sqlite3_file *pFile
             else if (flags & SQLITE_OPEN_CREATE) dwCreationDisposition = OPEN_ALWAYS;
             
             HANDLE h = CreateFileA(zName, dwDesiredAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, dwCreationDisposition, FILE_ATTRIBUTE_NORMAL, NULL);
+            
+            // Graceful read-only fallback if access denied (e.g. Git temp files are read-only)
+            if (h == INVALID_HANDLE_VALUE && (flags & SQLITE_OPEN_READWRITE) && GetLastError() == ERROR_ACCESS_DENIED) {
+                h = CreateFileA(zName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+                if (h != INVALID_HANDLE_VALUE) {
+                    flags = (flags & ~SQLITE_OPEN_READWRITE) | SQLITE_OPEN_READONLY;
+                }
+            }
+
             if (h != INVALID_HANDLE_VALUE) {
-                int oflags = _O_BINARY;
+                int oflags = O_BINARY;
                 if (flags & SQLITE_OPEN_READWRITE) oflags |= _O_RDWR;
                 else if (flags & SQLITE_OPEN_READONLY) oflags |= _O_RDONLY;
                 p->flat_fd = _open_osfhandle((intptr_t)h, oflags);
