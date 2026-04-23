@@ -4,6 +4,14 @@
 #include <string.h>
 #include <sqlite3.h>
 
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
+
+#ifndef WEXITSTATUS
+#define WEXITSTATUS(x) (x)
+#endif
+
 extern int sqlite3_gitvfs_init_impl(void*);
 
 int conflict_handler(void *pCtx, int eConflict, sqlite3_changeset_iter *pIter) {
