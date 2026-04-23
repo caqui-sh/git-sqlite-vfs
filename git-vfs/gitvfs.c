@@ -13,7 +13,9 @@ SQLITE_EXTENSION_INIT1
 #ifdef _WIN32
 #include <io.h>
 #include <windows.h>
+#include <process.h>
 #define ftruncate _chsize
+#define getpid _getpid
 #else
 #include <unistd.h>
 #endif
