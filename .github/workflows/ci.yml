@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (for sqlite download script)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: 'v2.x'
+
+      - name: Configure Git
+        shell: bash
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "CI Runner"
+
+      - name: Build C Binaries
+        shell: bash
+        run: make
+
+      - name: Run Tests
+        shell: bash
+        run: |
+          cd tests
+          deno task test

@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "test": "deno test -A --unstable-ffi integration.test.ts"
+  },
+  "imports": {
+    "@std/expect": "jsr:@std/expect@^1.0.0",
+    "@std/fs": "jsr:@std/fs@^1.0.0",
+    "@std/path": "jsr:@std/path@^1.0.0",
+    "@db/sqlite": "jsr:@db/sqlite@^0.11.0"
+  }
+}

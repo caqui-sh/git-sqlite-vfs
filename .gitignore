@@ -1,0 +1,30 @@
+# Build outputs
+output/
+**/*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# SQLite downloaded source
+sqlite-autoconf-*/
+sqlite-autoconf-*.tar.gz
+sqlite-amalgamation-*/
+sqlite3.c
+sqlite3.h
+sqlite3ext.h
+
+# Test databases
+test.db
+test.db-journal
+.db/
+.test-db/
+tests/.db/
+.compaction-db/
+
+# Node/Deno dependencies
+node_modules/
+.npmrc
+
+# OS generated files
+.DS_Store
