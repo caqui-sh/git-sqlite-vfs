@@ -3,14 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sqlite3.h>
-
-#ifndef _WIN32
 #include <sys/wait.h>
-#endif
-
-#ifndef WEXITSTATUS
-#define WEXITSTATUS(x) (x)
-#endif
 
 extern int sqlite3_gitvfs_init_impl(void*);
 
@@ -94,11 +87,7 @@ int main(int argc, char *argv[]) {
         system(cmd_extract);
 
         // Setup VFS configuration to handle the isolated directories
-#ifdef _WIN32
-        _putenv("GIT_SQLITE_VFS_DIR=gitvfs_");
-#else
         setenv("GIT_SQLITE_VFS_DIR", "gitvfs_", 1);
-#endif
         
         sqlite3 *db_local;
         char local_db_path[1024];

@@ -10,15 +10,7 @@ SQLITE_EXTENSION_INIT1
 #include <string.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#ifdef _WIN32
-#include <io.h>
-#include <windows.h>
-#include <process.h>
-#define ftruncate _chsize
-#define getpid _getpid
-#else
 #include <unistd.h>
-#endif
 #include <errno.h>
 
 #define GITVFS_PAGE_SIZE 4096
@@ -314,11 +306,7 @@ static int gitvfs_Truncate(sqlite3_file *pFile, sqlite3_int64 size) {
                 char buf[64];
                 int len = snprintf(buf, sizeof(buf), "%lld\n", (long long)p->max_page_number);
                 write(fd, buf, len);
-#ifdef _WIN32
-                _commit(fd);
-#else
                 fsync(fd);
-#endif
                 close(fd);
             }
         }
@@ -332,11 +320,7 @@ static int gitvfs_Sync(sqlite3_file *pFile, int flags) {
     (void)flags;
 
     if (!p->is_main_db) {
-#ifdef _WIN32
-        _commit(p->flat_fd);
-#else
         fsync(p->flat_fd);
-#endif
         return SQLITE_OK;
     }
 
@@ -351,11 +335,7 @@ static int gitvfs_Sync(sqlite3_file *pFile, int flags) {
             char buf[64];
             int len = snprintf(buf, sizeof(buf), "%lld\n", (long long)p->max_page_number);
             write(fd, buf, len);
-#ifdef _WIN32
-            _commit(fd);
-#else
             fsync(fd);
-#endif
             close(fd);
         }
     }
