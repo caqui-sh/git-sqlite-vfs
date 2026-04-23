@@ -34,7 +34,10 @@ function initVfs(dbDir: string) {
   const loaderDb = new Database(":memory:", { enableLoadExtension: true });
   loaderDb.loadExtension(getExtensionPath());
   loaderDb.close();
-  return new Database(dbDir);
+  const db = new Database(dbDir);
+  // CRITICAL: Disable WAL mode so Git doesn't track ephemeral .db-wal and .db-shm files
+  db.exec("PRAGMA journal_mode=DELETE;");
+  return db;
 }
 
 Deno.test("GitVFS Scale: Repository Anti-Bloat", async (t) => {

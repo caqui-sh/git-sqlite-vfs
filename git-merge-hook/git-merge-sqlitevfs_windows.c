@@ -96,6 +96,12 @@ int main(int argc, char *argv[]) {
         snprintf(cmd_extract, sizeof(cmd_extract), "git archive %s \"%s/pages/\" | tar -x -C .vfs_remote 2>nul", remote_commit, base_dir);
         system(cmd_extract);
 
+        // CRITICAL: Remove read-only attributes from the isolated directories
+        // Git archive/tar might preserve Git's internal read-only bits on Windows.
+        system("attrib -R .vfs_base\\* /S /D >nul 2>nul");
+        system("attrib -R .vfs_local\\* /S /D >nul 2>nul");
+        system("attrib -R .vfs_remote\\* /S /D >nul 2>nul");
+
         // Setup VFS configuration to handle the isolated directories
         _putenv("GIT_SQLITE_VFS_DIR=gitvfs_");
         
