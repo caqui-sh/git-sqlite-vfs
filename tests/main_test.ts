@@ -225,17 +225,7 @@ Deno.test("GitVFS Edge Cases: Transaction Rollbacks", async (t) => {
 });
 
 async function runGit(cwd: string, ...args: string[]) {
-  // On Windows, space-containing arguments in git commit -m can fail if not explicitly quoted
-  // because of how Deno.Command interacts with the Windows shell.
-  const processedArgs = (Deno.build.os === "windows") 
-    ? args.map(arg => (arg.includes(" ") && !arg.startsWith("\"")) ? `"${arg}"` : arg)
-    : args;
-
-  const cmd = new Deno.Command("git", { 
-    args: processedArgs, 
-    cwd,
-    windowsRawArguments: (Deno.build.os === "windows") // Pass arguments raw to avoid Deno escaping conflicts
-  });
+  const cmd = new Deno.Command("git", { args, cwd });
   const { code, stderr } = await cmd.output();
   if (code !== 0) {
     throw new Error(`Git command failed: git ${args.join(" ")}\n${new TextDecoder().decode(stderr)}`);
