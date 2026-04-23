@@ -3,9 +3,12 @@ import { registerSharedTests } from "./shared_suite.ts";
 
 async function runGit(cwd: string, ...args: string[]) {
   const processedArgs = args.map(arg => (arg.includes(" ") && !arg.startsWith("\"")) ? `"${arg}"` : arg);
-  const cmd = new Deno.Command("git", { args: processedArgs, cwd });
-  const { code, stderr } = await cmd.output();
-  if (code !== 0) {
+  const cmd = new Deno.Command("git", { 
+    args: processedArgs, 
+    cwd,
+    env: Deno.env.toObject()
+  });
+  const { code, stderr } = await cmd.output();  if (code !== 0) {
     throw new Error(`Git command failed: git ${args.join(" ")}\n${new TextDecoder().decode(stderr)}`);
   }
 }

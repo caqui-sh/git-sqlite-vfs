@@ -487,13 +487,18 @@ static int gitvfs_Open(sqlite3_vfs *pVfs, const char *zName, sqlite3_file *pFile
         
         // Anonymous temp file handling
         if (zName == NULL) {
+            char temp_dir[GITVFS_MAX_PATH];
             char temp_name[GITVFS_MAX_PATH];
-            snprintf(temp_name, sizeof(temp_name), "/tmp/gitvfs_temp_%d_%p", getpid(), p);
-            HANDLE h = CreateFileA(temp_name, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+            GetTempPathA(GITVFS_MAX_PATH, temp_dir);
+            GetTempFileNameA(temp_dir, "gvfs", 0, temp_name);
+            
+            HANDLE h = CreateFileA(temp_name, GENERIC_READ | GENERIC_WRITE, 
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 
+                NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+                
             if (h != INVALID_HANDLE_VALUE) {
                 p->flat_fd = _open_osfhandle((intptr_t)h, _O_RDWR | _O_BINARY);
             }
-            if (p->flat_fd >= 0) unlink(temp_name); // Clean up immediately on close
         } else {
             DWORD dwDesiredAccess = 0;
             if (flags & SQLITE_OPEN_READWRITE) dwDesiredAccess |= GENERIC_READ | GENERIC_WRITE;
