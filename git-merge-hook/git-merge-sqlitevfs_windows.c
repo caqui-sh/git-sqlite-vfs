@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
     int exit_code = WEXITSTATUS(merge_status);
 
     // 2. Find all GitVFS databases dynamically via git ls-files
-    system("git ls-files | findstr \"/pages/size.meta\" > .git_vfs_dbs.txt");
+    system("git ls-files > .git_vfs_dbs.txt");
 
     FILE *f = fopen(".git_vfs_dbs.txt", "r");
     if (!f) return exit_code;
