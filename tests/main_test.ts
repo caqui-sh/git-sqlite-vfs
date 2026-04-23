@@ -58,8 +58,8 @@ Deno.test("GitVFS Scale: Repository Anti-Bloat", async (t) => {
       db.close();
     });
 
-    await runGit(tempDir, "add", dbName);
-    await runGit(tempDir, "commit", "-m", "Initial database state");
+    await runGit(tempDir, "add", "-A");
+    await runGit(tempDir, "commit", "-m", "Initial_database_state");
 
     const baselineSize = getDirectorySize(path.resolve(tempDir, ".git/objects"));
     console.log(`  Baseline .git/objects size: ${baselineSize} bytes`);
@@ -73,8 +73,8 @@ Deno.test("GitVFS Scale: Repository Anti-Bloat", async (t) => {
           db.exec(`UPDATE users SET data = 'mutated in commit ${commitIdx}' WHERE id = ${id};`);
         }
         db.close();
-        await runGit(tempDir, "add", dbName);
-        await runGit(tempDir, "commit", "-m", `Update batch ${commitIdx}`);
+        await runGit(tempDir, "add", "-A");
+        await runGit(tempDir, "commit", "-m", `Update_batch_${commitIdx}`);
       }
     });
 
@@ -252,31 +252,32 @@ async function setupGitProject(tempDir: string, driverPath: string) {
   // Add our custom strategy to the PATH for Git to find it
   const driverDir = path.dirname(driverPath);
   const pathDelimiter = Deno.build.os === "windows" ? ";" : ":";
-  Deno.env.set("PATH", `${driverDir}${pathDelimiter}${Deno.env.get("PATH")}`);
+  const oldPath = Deno.env.get("PATH") || Deno.env.get("Path") || "";
+  const newPath = `${driverDir}${pathDelimiter}${oldPath}`;
+  
+  Deno.env.set("PATH", newPath);
+  if (Deno.build.os === "windows") {
+    Deno.env.set("Path", newPath);
+  }
 
   // On Windows, Git expects the strategy to be named exactly 'git-merge-sqlitevfs' 
   // without the .exe extension if it's placed in the PATH. We'll write multiple wrappers.
   if (Deno.build.os === "windows") {
     const exeName = "git-merge-sqlitevfs.exe";
     
-    // Create bash wrapper
+    // Create bash wrapper (Git for Windows uses bash for strategy resolution)
     const bashWrapper = path.resolve(driverDir, "git-merge-sqlitevfs");
-    Deno.writeTextFileSync(bashWrapper, `#!/bin/bash\nexec "$(dirname "$0")/${exeName}" "$@"\n`);
+    Deno.writeTextFileSync(bashWrapper, `#!/bin/sh\nexec "$(dirname "$0")/${exeName}" "$@"\n`);
     
-    // Create cmd wrapper just in case Git invokes cmd.exe
+    // Create cmd wrapper just in case
     const cmdWrapper = path.resolve(driverDir, "git-merge-sqlitevfs.cmd");
     Deno.writeTextFileSync(cmdWrapper, `@echo off\n"%~dp0${exeName}" %*\n`);
-    
-    // Also try a direct copy
-    if (existsSync(driverPath + ".exe") && !existsSync(driverPath)) {
-        Deno.copyFileSync(driverPath + ".exe", driverPath);
-    }
   }
 
   // We need at least one commit so we can branch from it.
   await Deno.writeTextFile(path.resolve(tempDir, "README.md"), "# Test Project\n");
   await runGit(tempDir, "add", "README.md");
-  await runGit(tempDir, "commit", "-m", "Initial commit");
+  await runGit(tempDir, "commit", "-m", "Initial_commit");
 }
 
 Deno.test("Merge Driver: Concurrent Inserts", async (t) => {
@@ -293,16 +294,16 @@ Deno.test("Merge Driver: Concurrent Inserts", async (t) => {
       db.close();
     });
 
-    await runGit(tempDir, "add", "concurrent.db");
-    await runGit(tempDir, "commit", "-m", "Create database");
+    await runGit(tempDir, "add", "-A");
+    await runGit(tempDir, "commit", "-m", "Create_database");
 
     await t.step("Branch A: Insert Alice", async () => {
       await runGit(tempDir, "checkout", "-b", "branch-a");
       const db = initVfs(dbPath);
       db.exec("INSERT INTO users (id, name) VALUES (1, 'Alice');");
       db.close();
-      await runGit(tempDir, "add", "concurrent.db");
-      await runGit(tempDir, "commit", "-m", "Add Alice");
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Add_Alice");
     });
 
     await t.step("Branch B: Insert Bob", async () => {
@@ -311,8 +312,8 @@ Deno.test("Merge Driver: Concurrent Inserts", async (t) => {
       const db = initVfs(dbPath);
       db.exec("INSERT INTO users (id, name) VALUES (2, 'Bob');");
       db.close();
-      await runGit(tempDir, "add", "concurrent.db");
-      await runGit(tempDir, "commit", "-m", "Add Bob");
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Add_Bob");
     });
     await t.step("Merge B into A", async () => {
       await runGit(tempDir, "checkout", "branch-a");
@@ -353,16 +354,16 @@ Deno.test("Merge Driver: Primary Key Conflict", async (t) => {
       db.close();
     });
 
-    await runGit(tempDir, "add", "pk_conflict.db");
-    await runGit(tempDir, "commit", "-m", "Create database");
+    await runGit(tempDir, "add", "-A");
+    await runGit(tempDir, "commit", "-m", "Create_database");
 
     await t.step("Branch A: Insert Alice as ID 1", async () => {
       await runGit(tempDir, "checkout", "-b", "branch-a");
       const db = initVfs(dbPath);
       db.exec("INSERT INTO users (id, name) VALUES (1, 'Alice');");
       db.close();
-      await runGit(tempDir, "add", "pk_conflict.db");
-      await runGit(tempDir, "commit", "-m", "Add Alice");
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Add_Alice");
     });
 
     await t.step("Branch B: Insert Bob as ID 1", async () => {
@@ -371,8 +372,8 @@ Deno.test("Merge Driver: Primary Key Conflict", async (t) => {
       const db = initVfs(dbPath);
       db.exec("INSERT INTO users (id, name) VALUES (1, 'Bob');");
       db.close();
-      await runGit(tempDir, "add", "pk_conflict.db");
-      await runGit(tempDir, "commit", "-m", "Add Bob");
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Add_Bob");
     });
 
     await t.step("Merge B into A", async () => {
@@ -420,8 +421,8 @@ Deno.test("Merge Driver Scale: Large Data Volume & Conflicts", async (t) => {
       db.close();
     });
 
-    await runGit(tempDir, "add", dbName);
-    await runGit(tempDir, "commit", "-m", "Initial 5000 users");
+    await runGit(tempDir, "add", "-A");
+    await runGit(tempDir, "commit", "-m", "Initial_5000_users");
 
     await t.step("Branch A: Add 10000 rows (5001-15000)", async () => {
       await runGit(tempDir, "checkout", "-b", "branch-a");
@@ -433,8 +434,8 @@ Deno.test("Merge Driver Scale: Large Data Volume & Conflicts", async (t) => {
       }
       db.exec("COMMIT;");
       db.close();
-      await runGit(tempDir, "add", dbName);
-      await runGit(tempDir, "commit", "-m", "Branch A adds 10k");
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Branch_A_adds_10k");
     });
 
     await t.step("Branch B: Add 10000 rows (10001-20000, 50% conflict)", async () => {
@@ -448,8 +449,8 @@ Deno.test("Merge Driver Scale: Large Data Volume & Conflicts", async (t) => {
       }
       db.exec("COMMIT;");
       db.close();
-      await runGit(tempDir, "add", dbName);
-      await runGit(tempDir, "commit", "-m", "Branch B adds 10k with overlaps");
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Branch_B_adds_10k_with_overlaps");
     });
 
     await t.step("Merge B into A", async () => {
@@ -494,16 +495,16 @@ Deno.test("Merge Driver Scale: Schema Buffer Limits", async (t) => {
       db.exec("CREATE TABLE baseline (id INTEGER);");
       db.close();
     });
-    await runGit(tempDir, "add", dbName);
-    await runGit(tempDir, "commit", "-m", "Init baseline");
+    await runGit(tempDir, "add", "-A");
+    await runGit(tempDir, "commit", "-m", "Init_baseline");
 
     await t.step("Branch A: Minor change", async () => {
       await runGit(tempDir, "checkout", "-b", "branch-a");
       const db = initVfs(dbPath);
       db.exec("CREATE TABLE a_marker (id INTEGER);");
       db.close();
-      await runGit(tempDir, "add", dbName);
-      await runGit(tempDir, "commit", "-m", "Branch A change");
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Branch_A_change");
     });
 
     await t.step("Branch B: 2000 Tables (Exceeding 1MB Schema)", async () => {
@@ -519,8 +520,8 @@ Deno.test("Merge Driver Scale: Schema Buffer Limits", async (t) => {
       }
       db.exec("COMMIT;");
       db.close();
-      await runGit(tempDir, "add", dbName);
-      await runGit(tempDir, "commit", "-m", "Branch B massive schema");
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Branch_B_massive_schema");
     });
 
     await t.step("Merge B into A", async () => {

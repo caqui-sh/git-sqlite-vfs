@@ -20,6 +20,10 @@ SQLITE_EXTENSION_INIT1
 #define GITVFS_PAGE_SIZE 4096
 #define GITVFS_MAX_PATH 512
 
+#ifndef O_BINARY
+#define O_BINARY _O_BINARY
+#endif
+
 /* 
  * Custom sqlite3_file subclass to hold our internal state.
  * This structure tracks the file descriptor equivalents and the state
@@ -193,7 +197,7 @@ static int gitvfs_Read(sqlite3_file *pFile, void *zBuf, int iAmt, sqlite3_int64 
     char path[GITVFS_MAX_PATH];
     get_page_filepath(p->base_dir, page_number, path, sizeof(path));
     
-    int fd = open(path, O_RDONLY);
+    int fd = open(path, O_RDONLY | O_BINARY);
     if (fd < 0) {
         // Unwritten page requested: Zero-fill the buffer entirely
         memset(zBuf, 0, iAmt);
@@ -243,7 +247,7 @@ static int gitvfs_Write(sqlite3_file *pFile, const void *zBuf, int iAmt, sqlite3
     }
     
     // CRITICAL: Open with O_RDWR | O_CREAT to modify existing page data without truncating
-    int fd = open(path, O_RDWR | O_CREAT, 0644);
+    int fd = open(path, O_RDWR | O_CREAT | O_BINARY, 0644);
     if (fd < 0) {
         return SQLITE_IOERR_WRITE;
     }
@@ -308,7 +312,7 @@ static int gitvfs_Truncate(sqlite3_file *pFile, sqlite3_int64 size) {
         if (new_max_page == -1) {
             remove(meta_path); // DB is completely empty
         } else {
-            int fd = open(meta_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+            int fd = open(meta_path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0666);
             if (fd >= 0) {
                 char buf[64];
                 int len = snprintf(buf, sizeof(buf), "%lld\n", (long long)p->max_page_number);
@@ -337,7 +341,7 @@ static int gitvfs_Sync(sqlite3_file *pFile, int flags) {
         snprintf(meta_path, sizeof(meta_path), "%s/pages/size.meta", p->base_dir);
         
         // Use lower level open/write for size.meta to easily allow _commit on Windows
-        int fd = open(meta_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+        int fd = open(meta_path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0666);
         if (fd >= 0) {
             char buf[64];
             int len = snprintf(buf, sizeof(buf), "%lld\n", (long long)p->max_page_number);

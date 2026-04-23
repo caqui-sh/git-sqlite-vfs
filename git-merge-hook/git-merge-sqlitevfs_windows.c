@@ -4,6 +4,13 @@
 #include <string.h>
 #include <sqlite3.h>
 
+static void fix_slashes(char *p) {
+    while (*p) {
+        if (*p == '/') *p = '\\';
+        p++;
+    }
+}
+
 #ifndef WEXITSTATUS
 #define WEXITSTATUS(x) (x)
 #endif
@@ -61,9 +68,9 @@ int main(int argc, char *argv[]) {
     int exit_code = WEXITSTATUS(merge_status);
 
     // 2. Find all GitVFS databases dynamically via git ls-files
-    system("git ls-files | findstr \"/pages/size.meta\" > \\tmp\\gitvfs_dbs.txt");
+    system("git ls-files | findstr \"/pages/size.meta\" > .git_vfs_dbs.txt");
 
-    FILE *f = fopen("\\tmp\\gitvfs_dbs.txt", "r");
+    FILE *f = fopen(".git_vfs_dbs.txt", "r");
     if (!f) return exit_code;
 
     char line[1024];
@@ -77,16 +84,16 @@ int main(int argc, char *argv[]) {
 
         printf("SQLite VFS Strategy Reconciling: %s\n", base_dir);
 
-        // Prepare isolated environments
-        system("rmdir /s /q \\tmp\\gitvfs_base_db \\tmp\\gitvfs_local_db \\tmp\\gitvfs_remote_db 2>nul");
-        system("mkdir \\tmp\\gitvfs_base_db \\tmp\\gitvfs_local_db \\tmp\\gitvfs_remote_db 2>nul");
+        // Prepare isolated environments (local to avoid \tmp issues)
+        system("rmdir /s /q .vfs_base .vfs_local .vfs_remote 2>nul");
+        system("mkdir .vfs_base .vfs_local .vfs_remote 2>nul");
 
         char cmd_extract[1024];
-        snprintf(cmd_extract, sizeof(cmd_extract), "git archive %s \"%s/pages/\" | tar -x -C \\tmp\\gitvfs_base_db 2>nul", base_commit, base_dir);
+        snprintf(cmd_extract, sizeof(cmd_extract), "git archive %s \"%s/pages/\" | tar -x -C .vfs_base 2>nul", base_commit, base_dir);
         system(cmd_extract);
-        snprintf(cmd_extract, sizeof(cmd_extract), "git archive %s \"%s/pages/\" | tar -x -C \\tmp\\gitvfs_local_db 2>nul", local_commit, base_dir);
+        snprintf(cmd_extract, sizeof(cmd_extract), "git archive %s \"%s/pages/\" | tar -x -C .vfs_local 2>nul", local_commit, base_dir);
         system(cmd_extract);
-        snprintf(cmd_extract, sizeof(cmd_extract), "git archive %s \"%s/pages/\" | tar -x -C \\tmp\\gitvfs_remote_db 2>nul", remote_commit, base_dir);
+        snprintf(cmd_extract, sizeof(cmd_extract), "git archive %s \"%s/pages/\" | tar -x -C .vfs_remote 2>nul", remote_commit, base_dir);
         system(cmd_extract);
 
         // Setup VFS configuration to handle the isolated directories
@@ -94,7 +101,7 @@ int main(int argc, char *argv[]) {
         
         sqlite3 *db_local;
         char local_db_path[1024];
-        snprintf(local_db_path, sizeof(local_db_path), "\\tmp\\gitvfs_local_db\\%s", base_dir);
+        snprintf(local_db_path, sizeof(local_db_path), ".vfs_local/%s", base_dir);
 
         sqlite3_gitvfs_init_impl(NULL);
 
@@ -104,11 +111,11 @@ int main(int argc, char *argv[]) {
         }
 
         char attach_base[1024];
-        snprintf(attach_base, sizeof(attach_base), "ATTACH DATABASE '\\tmp\\gitvfs_base_db\\%s' AS ancestor;", base_dir);
+        snprintf(attach_base, sizeof(attach_base), "ATTACH DATABASE '.vfs_base/%s' AS ancestor;", base_dir);
         sqlite3_exec(db_local, attach_base, NULL, 0, NULL);
 
         char attach_remote[1024];
-        snprintf(attach_remote, sizeof(attach_remote), "ATTACH DATABASE '\\tmp\\gitvfs_remote_db\\%s' AS other;", base_dir);
+        snprintf(attach_remote, sizeof(attach_remote), "ATTACH DATABASE '.vfs_remote/%s' AS other;", base_dir);
         sqlite3_exec(db_local, attach_remote, NULL, 0, NULL);
 
         // Schema Reconciliation: Phase 1 (Drops)
@@ -169,8 +176,13 @@ int main(int argc, char *argv[]) {
         sqlite3_close(db_local);
 
         // Copy Reconciled Database back into Working Tree
-        char cmd_cp[1024];
-        snprintf(cmd_cp, sizeof(cmd_cp), "rmdir /s /q \"%s\\pages\" 2>nul & xcopy /e /i /h /y \"\\tmp\\gitvfs_local_db\\%s\\pages\" \"%s\\pages\"", base_dir, base_dir, base_dir);
+        // Convert paths to Windows backslashes for xcopy/rmdir
+        char win_base_dir[1024];
+        strncpy(win_base_dir, base_dir, 1024);
+        fix_slashes(win_base_dir);
+
+        char cmd_cp[2048];
+        snprintf(cmd_cp, sizeof(cmd_cp), "rmdir /s /q \"%s\\pages\" 2>nul & xcopy /e /i /h /y \".vfs_local\\%s\\pages\" \"%s\\pages\"", win_base_dir, win_base_dir, win_base_dir);
         system(cmd_cp);
 
         // Stage the resolved directory into the Git index
@@ -179,6 +191,9 @@ int main(int argc, char *argv[]) {
         system(cmd_add);
     }
     fclose(f);
+
+    system("del .git_vfs_dbs.txt 2>nul");
+    system("rmdir /s /q .vfs_base .vfs_local .vfs_remote 2>nul");
 
     if (exit_code != 0) {
         int unmerged = system("git ls-files -u | grep -q .");
