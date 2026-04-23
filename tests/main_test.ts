@@ -251,7 +251,8 @@ async function setupGitProject(tempDir: string, driverPath: string) {
 
   // Add our custom strategy to the PATH for Git to find it
   const driverDir = path.dirname(driverPath);
-  Deno.env.set("PATH", `${driverDir}:${Deno.env.get("PATH")}`);
+  const pathDelimiter = Deno.build.os === "windows" ? ";" : ":";
+  Deno.env.set("PATH", `${driverDir}${pathDelimiter}${Deno.env.get("PATH")}`);
 
   // On Windows, Git expects the strategy to be named exactly 'git-merge-sqlitevfs' 
   // without the .exe extension if it's placed in the PATH. We'll write multiple wrappers.

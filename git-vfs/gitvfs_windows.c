@@ -272,21 +272,23 @@ static int gitvfs_Write(sqlite3_file *pFile, const void *zBuf, int iAmt, sqlite3
     return SQLITE_OK;
 }
 
-#ifdef _WIN32
-#include <io.h>
-#define ftruncate _chsize
-#endif
-
 static int gitvfs_Truncate(sqlite3_file *pFile, sqlite3_int64 size) {
     gitvfs_file *p = (gitvfs_file*)pFile;
-    
-    // Route to ftruncate for temp/journal files
+
+    // Route to SetEndOfFile for temp/journal files
     if (!p->is_main_db) {
-        return (ftruncate(p->flat_fd, (long)size) == 0) ? SQLITE_OK : SQLITE_IOERR_TRUNCATE;
+        HANDLE hFile = (HANDLE)_get_osfhandle(p->flat_fd);
+        if (hFile == INVALID_HANDLE_VALUE) return SQLITE_IOERR_TRUNCATE;
+
+        LARGE_INTEGER li;
+        li.QuadPart = size; // NEVER subtract 1
+        if (!SetFilePointerEx(hFile, li, NULL, FILE_BEGIN)) return SQLITE_IOERR_TRUNCATE;
+        if (!SetEndOfFile(hFile)) return SQLITE_IOERR_TRUNCATE;
+
+        return SQLITE_OK;
     }
 
-    // Sharded DB truncate logic
-    sqlite3_int64 new_max_page = (size == 0) ? -1 : (size - 1) / GITVFS_PAGE_SIZE;
+    // Sharded DB truncate logic    sqlite3_int64 new_max_page = (size == 0) ? -1 : (size - 1) / GITVFS_PAGE_SIZE;
     
     // Clean up abandoned page files
     for (sqlite3_int64 i = new_max_page + 1; i <= p->max_page_number; i++) {
@@ -478,19 +480,31 @@ static int gitvfs_Open(sqlite3_vfs *pVfs, const char *zName, sqlite3_file *pFile
         // Handle temp/journal file natively as a monolithic file
         p->is_main_db = 0;
         
-        int openFlags = 0;
-        if (flags & SQLITE_OPEN_READONLY)  openFlags |= O_RDONLY;
-        if (flags & SQLITE_OPEN_READWRITE) openFlags |= O_RDWR;
-        if (flags & SQLITE_OPEN_CREATE)    openFlags |= O_CREAT;
-        
         // Anonymous temp file handling
         if (zName == NULL) {
             char temp_name[GITVFS_MAX_PATH];
             snprintf(temp_name, sizeof(temp_name), "/tmp/gitvfs_temp_%d_%p", getpid(), p);
-            p->flat_fd = open(temp_name, O_RDWR | O_CREAT | O_EXCL, 0644);
+            HANDLE h = CreateFileA(temp_name, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (h != INVALID_HANDLE_VALUE) {
+                p->flat_fd = _open_osfhandle((intptr_t)h, _O_RDWR | _O_BINARY);
+            }
             if (p->flat_fd >= 0) unlink(temp_name); // Clean up immediately on close
         } else {
-            p->flat_fd = open(zName, openFlags, 0644);
+            DWORD dwDesiredAccess = 0;
+            if (flags & SQLITE_OPEN_READWRITE) dwDesiredAccess |= GENERIC_READ | GENERIC_WRITE;
+            else if (flags & SQLITE_OPEN_READONLY) dwDesiredAccess |= GENERIC_READ;
+            
+            DWORD dwCreationDisposition = OPEN_EXISTING;
+            if ((flags & SQLITE_OPEN_CREATE) && (flags & SQLITE_OPEN_EXCLUSIVE)) dwCreationDisposition = CREATE_NEW;
+            else if (flags & SQLITE_OPEN_CREATE) dwCreationDisposition = OPEN_ALWAYS;
+            
+            HANDLE h = CreateFileA(zName, dwDesiredAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, dwCreationDisposition, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (h != INVALID_HANDLE_VALUE) {
+                int oflags = _O_BINARY;
+                if (flags & SQLITE_OPEN_READWRITE) oflags |= _O_RDWR;
+                else if (flags & SQLITE_OPEN_READONLY) oflags |= _O_RDONLY;
+                p->flat_fd = _open_osfhandle((intptr_t)h, oflags);
+            }
         }
         
         if (p->flat_fd < 0) {
