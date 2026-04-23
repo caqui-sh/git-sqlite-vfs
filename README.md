@@ -17,6 +17,8 @@ This project provides a SQLite C extension that overrides default file system be
 
 ## Building
 
+> **Note:** Windows is currently not supported.
+
 The project uses a standard `Makefile`. To build the binaries, simply run:
 
 ```bash
@@ -25,7 +27,7 @@ make
 
 This will automatically:
 1. Download the required SQLite amalgamation source code (`sqlite3.c` and `sqlite3.h`).
-2. Compile the `gitvfs` shared library (`.so`, `.dylib`, or `.dll`).
+2. Compile the `gitvfs` shared library (`.so` or `.dylib`).
 3. Compile the `git-merge-sqlitevfs` executable.
 4. Compile the `gitvfs_test` test executable.
 
@@ -44,7 +46,7 @@ deno test -A
 
 As a standard loadable SQLite C extension, `gitvfs` can be utilized in any environment that supports SQLite extensions (e.g., Python, Rust, Go, or native C applications).
 
-You can load the compiled `.so`/`.dylib`/`.dll` via `sqlite3_load_extension()`. Upon loading, it registers as a Virtual File System. Subsequent `sqlite3_open()` calls using this VFS will be intercepted, sharded into 4KB pages, and structured for Git versioning.
+You can load the compiled `.so` or `.dylib` via `sqlite3_load_extension()`. Upon loading, it registers as a Virtual File System. Subsequent `sqlite3_open()` calls using this VFS will be intercepted, sharded into 4KB pages, and structured for Git versioning.
 
 ### Setting up the Merge Driver
 
@@ -61,5 +63,4 @@ While the current test suite provides significant coverage for functional correc
 
 - [ ] **VFS: Large BLOBs (Overflow Pages)**: Assert that single rows exceeding the 4KB page size (e.g., 10MB images or JSON) are correctly sharded into linked overflow pages across the file system without corruption.
 - [ ] **VFS: Concurrency & File Locking**: Assert that OS-level file locking works correctly across the sharded `.bin` file architecture when multiple database connections attempt simultaneous read/write operations.
-- [ ] **Merge Driver: Incremental Memory Management**: Investigate replacing the fixed 1MB schema buffer in `git-merge-sqlitevfs.c` with dynamic allocation to handle extremely complex schema migrations.
 
