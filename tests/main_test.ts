@@ -243,7 +243,18 @@ async function setupGitProject(tempDir: string, driverPath: string) {
   await runGit(tempDir, "config", "user.name", "Test User");
 
   // Add our custom strategy to the PATH for Git to find it
-  Deno.env.set("PATH", `${path.dirname(driverPath)}:${Deno.env.get("PATH")}`);
+  const driverDir = path.dirname(driverPath);
+  Deno.env.set("PATH", `${driverDir}:${Deno.env.get("PATH")}`);
+
+  // On Windows, Git expects the strategy to be named exactly 'git-merge-sqlitevfs' 
+  // without the .exe extension if it's placed in the PATH.
+  if (Deno.build.os === "windows") {
+    const exePath = `${driverPath}.exe`;
+    const noExePath = driverPath;
+    if (existsSync(exePath) && !existsSync(noExePath)) {
+        Deno.copyFileSync(exePath, noExePath);
+    }
+  }
 
   // We need at least one commit so we can branch from it.
   await Deno.writeTextFile(path.resolve(tempDir, "README.md"), "# Test Project\n");

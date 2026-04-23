@@ -268,12 +268,17 @@ static int gitvfs_Write(sqlite3_file *pFile, const void *zBuf, int iAmt, sqlite3
     return SQLITE_OK;
 }
 
+#ifdef _WIN32
+#include <io.h>
+#define ftruncate _chsize
+#endif
+
 static int gitvfs_Truncate(sqlite3_file *pFile, sqlite3_int64 size) {
     gitvfs_file *p = (gitvfs_file*)pFile;
     
     // Route to ftruncate for temp/journal files
     if (!p->is_main_db) {
-        return (ftruncate(p->flat_fd, size) == 0) ? SQLITE_OK : SQLITE_IOERR_TRUNCATE;
+        return (ftruncate(p->flat_fd, (long)size) == 0) ? SQLITE_OK : SQLITE_IOERR_TRUNCATE;
     }
 
     // Sharded DB truncate logic
@@ -299,6 +304,7 @@ static int gitvfs_Truncate(sqlite3_file *pFile, sqlite3_int64 size) {
             FILE *f = fopen(meta_path, "w");
             if (f) {
                 fprintf(f, "%lld\n", (long long)p->max_page_number);
+                fflush(f);
                 fclose(f);
             }
         }
