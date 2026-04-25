@@ -541,7 +541,7 @@ static const char *gitvfs_NextSystemCall(sqlite3_vfs *pVfs, const char *zName) {
  */
 int sqlite3_gitvfs_init_impl(const char *base_dir) {
     (void)base_dir;
-    if (sqlite3_vfs_find("gitvfs") != NULL) {
+    if (sqlite3_vfs_find("git") != NULL) {
         return SQLITE_OK;
     }
     
@@ -552,7 +552,7 @@ int sqlite3_gitvfs_init_impl(const char *base_dir) {
         0,                                /* szOsFile */
         GITVFS_MAX_PATH,                  /* mxPathname */
         NULL,                             /* pNext */
-        "gitvfs",                         /* zName */
+        "git",                            /* zName */
         NULL,                             /* pAppData */
         gitvfs_Open,                      /* xOpen */
         gitvfs_Delete,                    /* xDelete */
