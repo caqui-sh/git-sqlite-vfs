@@ -573,7 +573,7 @@ int sqlite3_gitvfs_init_impl(const char *base_dir) {
     };
 
     git_vfs.szOsFile = sizeof(gitvfs_file) > (size_t)orig_vfs->szOsFile ? (int)sizeof(gitvfs_file) : orig_vfs->szOsFile;
-    return sqlite3_vfs_register(&git_vfs, 1);
+    return sqlite3_vfs_register(&git_vfs, 0);
 }
 
 #ifdef COMPILE_SQLITE_EXTENSION
