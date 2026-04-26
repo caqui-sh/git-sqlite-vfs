@@ -629,3 +629,68 @@ Deno.test("Merge Driver: Foreign Key Constraints", async (t) => {
     Deno.removeSync(tempDir, { recursive: true });
   }
 });
+
+Deno.test("Merge Driver: Concurrent Text and DB Edits", async (t) => {
+  const tempDir = Deno.makeTempDirSync({ prefix: "merge_text_and_db_" });
+  const driverPath = path.resolve(Deno.cwd(), "../output/git-merge-sqlitevfs");
+  const dbPath = path.resolve(tempDir, "mixed.db");
+
+  try {
+    await setupGitProject(tempDir, driverPath);
+
+    await t.step("Setup base database and text file", async () => {
+      const db = initVfs(dbPath);
+      db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);");
+      db.close();
+
+      await Deno.writeTextFile(path.resolve(tempDir, "README.md"), "line1\nline2\nline3\n");
+    });
+
+    await runGit(tempDir, "add", "-A");
+    await runGit(tempDir, "commit", "-m", "Create database and text file");
+
+    await t.step("Branch A: Modify text file (top) and insert Alice", async () => {
+      await runGit(tempDir, "checkout", "-b", "branch-a");
+      const db = initVfs(dbPath);
+      db.exec("INSERT INTO users (id, name) VALUES (1, 'Alice');");
+      db.close();
+
+      await Deno.writeTextFile(path.resolve(tempDir, "README.md"), "line0-branchA\nline1\nline2\nline3\n");
+
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Branch A changes");
+    });
+
+    await t.step("Branch B: Modify text file (bottom) and insert Bob", async () => {
+      await runGit(tempDir, "checkout", "main");
+      await runGit(tempDir, "checkout", "-b", "branch-b");
+      const db = initVfs(dbPath);
+      db.exec("INSERT INTO users (id, name) VALUES (2, 'Bob');");
+      db.close();
+
+      await Deno.writeTextFile(path.resolve(tempDir, "README.md"), "line1\nline2\nline3\nline4-branchB\n");
+
+      await runGit(tempDir, "add", "-A");
+      await runGit(tempDir, "commit", "-m", "Branch B changes");
+    });
+
+    await t.step("Merge B into A", async () => {
+      await runGit(tempDir, "checkout", "branch-a");
+      await runGit(tempDir, "merge", "-s", "sqlitevfs", "branch-b");
+    });
+
+    await t.step("Verify both changes applied", async () => {
+      const db = initVfs(dbPath);
+      const rows = db.prepare("SELECT name FROM users ORDER BY id").all<{ name: string }>();
+      expect(rows.length).toBe(2);
+      expect(rows[0].name).toBe("Alice");
+      expect(rows[1].name).toBe("Bob");
+      db.close();
+
+      const textContent = await Deno.readTextFile(path.resolve(tempDir, "README.md"));
+      expect(textContent).toBe("line0-branchA\nline1\nline2\nline3\nline4-branchB\n");
+    });
+  } finally {
+    Deno.removeSync(tempDir, { recursive: true });
+  }
+});
