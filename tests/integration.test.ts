@@ -32,7 +32,8 @@ function initVfs(dbDir: string) {
   const loaderDb = new Database(":memory:", { enableLoadExtension: true });
   loaderDb.loadExtension(getExtensionPath());
   loaderDb.close();
-  const db = new Database(dbDir);
+  // 0x02 (READWRITE) | 0x04 (CREATE) | 0x40 (URI) = 0x46
+  const db = new Database(`file:${dbDir}?vfs=git`, { flags: 0x46 });
   db.exec("PRAGMA journal_mode=DELETE;");
   return db;
 }

@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
 
         sqlite3_gitvfs_init_impl(NULL);
 
-        if (sqlite3_open_v2(local_db_path, &db_local, SQLITE_OPEN_READWRITE, "gitvfs") != SQLITE_OK) {
+        if (sqlite3_open_v2(local_db_path, &db_local, SQLITE_OPEN_READWRITE, "git") != SQLITE_OK) {
             fprintf(stderr, "Failed to open local DB: %s\n", sqlite3_errmsg(db_local));
             continue;
         }
